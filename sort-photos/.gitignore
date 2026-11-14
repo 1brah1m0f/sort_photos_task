@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info
+.pytest_cache
+.venv/
+
+# backbone weights (~340 MB) are fetched with `python -m clip download-model`
+models/backbone/
+
+thumbs.db
+.DS_Store
+.idea

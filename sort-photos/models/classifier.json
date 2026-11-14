@@ -1,0 +1,64 @@
+{
+  "class_names": [
+    "food_drinks",
+    "people",
+    "interior"
+  ],
+  "backbone": {
+    "name": "ViT-B/32",
+    "source": "OpenAI CLIP (MIT license), image encoder only, frozen",
+    "checkpoint": "ViT-B-32.pt",
+    "sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af"
+  },
+  "classifier": {
+    "type": "LogisticRegression",
+    "C": 100.0,
+    "max_iter": 5000
+  },
+  "training": {
+    "best_c": 100.0,
+    "cv_accuracy_mean": 0.9466666666666667,
+    "cv_accuracy_std": 0.03399346342395189,
+    "cv_folds": 5,
+    "cv_results": [
+      {
+        "C": 0.01,
+        "mean_accuracy": 0.9133333333333333,
+        "std_accuracy": 0.02666666666666666
+      },
+      {
+        "C": 0.1,
+        "mean_accuracy": 0.9133333333333333,
+        "std_accuracy": 0.02666666666666666
+      },
+      {
+        "C": 1.0,
+        "mean_accuracy": 0.9266666666666667,
+        "std_accuracy": 0.01333333333333333
+      },
+      {
+        "C": 10.0,
+        "mean_accuracy": 0.9400000000000001,
+        "std_accuracy": 0.038873012632301994
+      },
+      {
+        "C": 100.0,
+        "mean_accuracy": 0.9466666666666667,
+        "std_accuracy": 0.03399346342395189
+      }
+    ],
+    "train_counts": {
+      "food_drinks": 50,
+      "people": 50,
+      "interior": 50
+    },
+    "skipped": []
+  },
+  "seed": 42,
+  "versions": {
+    "python": "3.11.6",
+    "torch": "2.15.0+cpu",
+    "scikit-learn": "1.9.1"
+  },
+  "trained_at": "2026-11-14T17:24:30+00:00"
+}

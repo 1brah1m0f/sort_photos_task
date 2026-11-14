@@ -1,0 +1,71 @@
+{
+  "n_images": 45,
+  "n_correct": 44,
+  "accuracy": 0.9777777777777777,
+  "per_class": {
+    "food_drinks": {
+      "precision": 0.9375,
+      "recall": 1.0,
+      "f1-score": 0.967741935483871,
+      "support": 15.0
+    },
+    "people": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 15.0
+    },
+    "interior": {
+      "precision": 1.0,
+      "recall": 0.9333333333333333,
+      "f1-score": 0.9655172413793104,
+      "support": 15.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      15,
+      0,
+      0
+    ],
+    [
+      0,
+      15,
+      0
+    ],
+    [
+      1,
+      0,
+      14
+    ]
+  ],
+  "class_names": [
+    "food_drinks",
+    "people",
+    "interior"
+  ],
+  "misclassified": [
+    {
+      "path": "data/test/interior/337d124eeda7482b9aba84aae4ef9528.jpg",
+      "true": "interior",
+      "predicted": "food_drinks",
+      "confidence": 0.9228495359420776,
+      "probabilities": {
+        "food_drinks": 0.9228495359420776,
+        "people": 0.0019790111109614372,
+        "interior": 0.07517148554325104
+      }
+    }
+  ],
+  "difficult_example": {
+    "path": "data/test/interior/337d124eeda7482b9aba84aae4ef9528.jpg",
+    "true": "interior",
+    "predicted": "food_drinks",
+    "confidence": 0.9228495359420776,
+    "probabilities": {
+      "food_drinks": 0.9228495359420776,
+      "people": 0.0019790111109614372,
+      "interior": 0.07517148554325104
+    }
+  }
+}
