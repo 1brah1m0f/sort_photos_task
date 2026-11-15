@@ -8,8 +8,8 @@ import pytest
 from PIL import Image
 from sklearn.linear_model import LogisticRegression
 
-from clip.config import CLASS_NAMES
-from clip.predict import PhotoClassifier
+from cafe_sorter.config import CLASS_NAMES
+from cafe_sorter.predict import PhotoClassifier
 
 # food_drinks -> red, people -> green, interior -> blue
 COLOURS = {"food_drinks": (220, 30, 30), "people": (30, 220, 30), "interior": (30, 30, 220)}
@@ -59,8 +59,8 @@ def photos(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def cli_with_classifier(classifier: PhotoClassifier, monkeypatch: pytest.MonkeyPatch):
-    """Run the real CLI (``clip.cli.main``) with the colour classifier instead of loading CLIP weights."""
-    from clip.cli import main
+    """Run the real CLI (``cafe_sorter.cli.main``) with the colour classifier instead of loading CLIP weights."""
+    from cafe_sorter.cli import main
 
     monkeypatch.setattr(PhotoClassifier, "load", lambda *args, **kwargs: classifier)
     return main

@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 from conftest import make_image, tree_hashes
-from clip.config import PREDICTIONS_FILE
-from clip.fileops import copy_into, unique_destination, write_csv_atomic
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+from cafe_sorter.config import PREDICTIONS_FILE
+from cafe_sorter.fileops import copy_into, unique_destination, write_csv_atomic
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 
 
 def test_csv_symlink_to_input_photo_is_rejected(photos: Path, tmp_path: Path, classifier: PhotoClassifier) -> None:
@@ -95,7 +95,7 @@ def _album_snapshot(album: Path) -> dict:
 
 def test_missing_source_after_reservation_leaves_no_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The source vanishes between reserving the destination and copying it."""
-    import clip.fileops as fileops
+    import cafe_sorter.fileops as fileops
 
     album = tmp_path / "album"
     existing = make_image(album / "photo.jpg", "people")
@@ -118,7 +118,7 @@ def test_missing_source_after_reservation_leaves_no_file(tmp_path: Path, monkeyp
 
 def test_partial_write_is_removed_and_error_surfaced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A copy that writes some bytes and then fails (e.g. disk full) leaves nothing behind."""
-    import clip.fileops as fileops
+    import cafe_sorter.fileops as fileops
 
     album = tmp_path / "album"
     make_image(album / "photo.jpg", "people")
@@ -147,7 +147,7 @@ def test_successful_copy_keeps_bytes_and_metadata(tmp_path: Path) -> None:
 
 def test_sort_reports_failed_copy_and_continues(photos: Path, tmp_path: Path, classifier: PhotoClassifier,
                                                monkeypatch: pytest.MonkeyPatch) -> None:
-    import clip.fileops as fileops
+    import cafe_sorter.fileops as fileops
 
     real_copy2 = fileops.shutil.copy2
 
@@ -167,10 +167,10 @@ def test_sort_reports_failed_copy_and_continues(photos: Path, tmp_path: Path, cl
         assert item.copied_to.read_bytes() == item.original_path.read_bytes()
 
 
-# --- exit status of `python -m clip sort` when copies fail ----------------------------------------------------------
+# --- exit status of `photo-sorter sort` when copies fail ----------------------------------------------------------
 
 def _failing_copy2(monkeypatch: pytest.MonkeyPatch, fail_names: set) -> None:
-    import clip.fileops as fileops
+    import cafe_sorter.fileops as fileops
 
     real_copy2 = fileops.shutil.copy2
 

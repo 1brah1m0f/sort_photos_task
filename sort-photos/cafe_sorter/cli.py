@@ -1,4 +1,4 @@
-"""Command-line interface: ``python -m clip {download-model,train,evaluate,check-duplicates,sort}``."""
+"""Command-line interface: ``photo-sorter {download-model,train,evaluate,check-duplicates,sort}``."""
 import argparse
 import logging
 import math
@@ -139,7 +139,7 @@ def cmd_check_duplicates(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m clip", description="Sort café photos into Food & Drinks, People and Interior albums.")
+    parser = argparse.ArgumentParser(prog="photo-sorter", description="Sort café photos into Food & Drinks, People and Interior albums.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser, model: bool = True) -> None:

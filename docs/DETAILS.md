@@ -77,7 +77,7 @@ GPU is used automatically (`--device cpu` forces the CPU). CI runs exactly these
 
 ## Commands
 
-`photo-sorter` is installed by step 2; `python -m clip` is the same CLI. Run `photo-sorter <command> --help`
+`photo-sorter` is installed by step 2; `python -m cafe_sorter` is the same CLI. Run `photo-sorter <command> --help`
 for every option.
 
 | Command | What it does |
@@ -343,14 +343,14 @@ cd sort-photos
 python -m pytest
 ```
 
-79 tests. They use tiny generated images and a colour-based stand-in for CLIP, so they run in about a second
+80 tests. They use tiny generated images and a colour-based stand-in for CLIP, so they run in about a second
 without the model download. They cover:
 - **sorting:** originals unchanged (SHA-256), albums, corrupt/non-image files skipped, name collisions,
   `predictions.csv`, `--min-confidence`, `--unsure`, `--append`, filename independence, EXIF orientation, HEIC;
 - **safety:** symlinked CSV or albums (including `Unsure/`), dangling links, atomic CSV writes, failed and
   partial copies, refusal to re-sort into a used output folder;
 - **CLI:** exit `1` when every copy fails or no images are found; `0` for partial failures and corrupt-only
-  folders; `2` for invalid arguments; running from another directory;
+  folders; `2` for invalid arguments; running `photo-sorter` and `python -m cafe_sorter` from another directory;
 - **argument validation and training data checks;**
 - **group resolution** for flat and nested training folders, including ambiguous and conflicting manifest rows;
 - **the duplicate checker.**
@@ -361,7 +361,7 @@ without the model download. They cover:
 README.md                    # one-page overview
 docs/DETAILS.md              # this page
 sort-photos/
-├── clip/                    # the package (photo-sorter / python -m clip)
+├── cafe_sorter/             # the package (photo-sorter / python -m cafe_sorter)
 │   ├── __main__.py          # entry point
 │   ├── cli.py               # argparse CLI: download-model / train / evaluate / check-duplicates / sort
 │   ├── config.py            # classes, album names, absolute default paths, seeds, CV settings, device
@@ -410,7 +410,7 @@ sort-photos/
 
 ## License and credits
 
-The image-encoder code in `sort-photos/clip/model.py` and `sort-photos/clip/clip.py` is adapted from
+The image-encoder code in `sort-photos/cafe_sorter/model.py` and `sort-photos/cafe_sorter/clip.py` is adapted from
 [OpenAI CLIP](https://github.com/openai/CLIP) (MIT, see [LICENSE](../sort-photos/LICENSE)). The source, author
 and license of every photo are listed in [`data/manifest.csv`](../sort-photos/data/manifest.csv),
 [`data/holdout_cafe/manifest.csv`](../sort-photos/data/holdout_cafe/manifest.csv) and

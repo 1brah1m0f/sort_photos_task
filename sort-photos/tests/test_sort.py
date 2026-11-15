@@ -6,11 +6,11 @@ import pytest
 from PIL import Image
 
 from conftest import make_image, tree_hashes
-from clip.config import ALBUMS, CLASS_NAMES, PREDICTIONS_FILE
-from clip.features import open_image
-from clip.fileops import unique_destination
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+from cafe_sorter.config import ALBUMS, CLASS_NAMES, PREDICTIONS_FILE
+from cafe_sorter.features import open_image
+from cafe_sorter.fileops import unique_destination
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 
 
 def test_originals_unchanged(photos: Path, tmp_path: Path, classifier: PhotoClassifier) -> None:
@@ -90,7 +90,7 @@ def test_exif_orientation_applied(tmp_path: Path) -> None:
 def test_backbone_builds_image_encoder_only() -> None:
     import torch
 
-    from clip.model import VisionTransformer, build_model
+    from cafe_sorter.model import VisionTransformer, build_model
 
     tiny = VisionTransformer(input_resolution=32, patch_size=16, width=64, layers=2, heads=1, output_dim=8)
     state = {f"visual.{k}": v for k, v in tiny.state_dict().items()}

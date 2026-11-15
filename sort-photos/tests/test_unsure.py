@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from clip.config import PREDICTIONS_FILE, UNSURE_ALBUM
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+from cafe_sorter.config import PREDICTIONS_FILE, UNSURE_ALBUM
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 from conftest import make_image, tree_hashes
 
 
@@ -93,7 +93,7 @@ def test_unsure_symlink_is_rejected_even_without_flag(photos: Path, tmp_path: Pa
 # --- console output and empty input -----------------------------------------------------------------------------
 
 def test_console_confidence_is_truncated_to_three_decimals() -> None:
-    from clip.cli import _confidence
+    from cafe_sorter.cli import _confidence
 
     assert _confidence(0.49996) == "0.499"  # would round to 0.500 and look equal to a 0.5 threshold
     assert _confidence(0.5) == "0.500"

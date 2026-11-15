@@ -140,7 +140,7 @@ def load(name: str, device: Union[str, torch.device] = "cpu", download_root: Uni
             raise ValueError("download_root is required when loading a model by name")
         model_path = checkpoint_path(name, download_root)
         if not model_path.is_file():
-            raise FileNotFoundError(f"Backbone weights not found at {model_path}. Run `python -m clip download-model` once first.")
+            raise FileNotFoundError(f"Backbone weights not found at {model_path}. Run `photo-sorter download-model` once first.")
     elif os.path.isfile(name):
         model_path = Path(name)
     else:

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from clip.config import PREDICTIONS_FILE
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+from cafe_sorter.config import PREDICTIONS_FILE
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 from conftest import make_image, tree_hashes
 
 

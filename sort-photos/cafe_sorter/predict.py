@@ -27,7 +27,7 @@ def load_artifact(model_dir: Path) -> Tuple[Any, Dict[str, Any]]:
     classifier_path = model_dir / CLASSIFIER_FILE
     metadata_path = model_dir / METADATA_FILE
     if not classifier_path.is_file() or not metadata_path.is_file():
-        raise FileNotFoundError(f"No trained model in {model_dir}. Run `python -m clip train` first.")
+        raise FileNotFoundError(f"No trained model in {model_dir}. Run `photo-sorter train` first.")
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     return joblib.load(classifier_path), metadata
 

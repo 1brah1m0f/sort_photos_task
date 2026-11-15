@@ -19,7 +19,7 @@ ALBUMS: Dict[str, str] = {
 # Optional album for photos below --min-confidence when --unsure is given.
 UNSURE_ALBUM = "Unsure"
 
-# Frozen feature extractor (one of clip.available_models()).
+# Frozen feature extractor (one of cafe_sorter.clip.available_models()).
 BACKBONE_NAME = "ViT-B/32"
 
 # Project folder (sort-photos/). Defaults are absolute paths under it, so the CLI works from any directory.

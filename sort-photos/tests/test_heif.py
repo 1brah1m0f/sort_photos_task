@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-import clip.features
-from clip.config import IMAGE_EXTENSIONS
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+import cafe_sorter.features
+from cafe_sorter.config import IMAGE_EXTENSIONS
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 from conftest import make_image, tree_hashes
 
 pytest.importorskip("pillow_heif")
@@ -38,7 +38,7 @@ def test_heic_photos_are_sorted(heic_photos: Path, tmp_path: Path, classifier: P
 def test_heic_without_pillow_heif_is_skipped_with_a_clear_reason(heic_photos: Path, tmp_path: Path,
                                                                   classifier: PhotoClassifier,
                                                                   monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(clip.features, "HEIF_AVAILABLE", False)
+    monkeypatch.setattr(cafe_sorter.features, "HEIF_AVAILABLE", False)
     result = sort_folder(heic_photos, tmp_path / "albums", classifier, progress=False)
     assert [item.original_path.name for item in result.sorted_files] == ["IMG_4503.jpg"]
     reasons = {path.name: why for path, why in result.skipped}

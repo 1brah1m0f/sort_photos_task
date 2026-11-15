@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-import clip.train
+import cafe_sorter.train
 from conftest import COLOURS, MeanColourEmbedder, make_image
-from clip.cli import build_parser, main
-from clip.config import CLASS_NAMES, CLASSIFIER_FILE, METADATA_FILE
-from clip.evaluate import evaluate
-from clip.predict import PhotoClassifier
-from clip.sorter import sort_folder
+from cafe_sorter.cli import build_parser, main
+from cafe_sorter.config import CLASS_NAMES, CLASSIFIER_FILE, METADATA_FILE
+from cafe_sorter.evaluate import evaluate
+from cafe_sorter.predict import PhotoClassifier
+from cafe_sorter.sorter import sort_folder
 
 
 def make_dataset(root: Path, per_class: int, corrupt_classes: tuple = ()) -> Path:
@@ -28,9 +28,9 @@ def make_dataset(root: Path, per_class: int, corrupt_classes: tuple = ()) -> Pat
 @pytest.fixture
 def fake_backbone(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make ``train()`` use the colour embedder instead of loading CLIP weights."""
-    monkeypatch.setattr(clip.train, "ClipEmbedder", lambda *args, **kwargs: MeanColourEmbedder())
-    monkeypatch.setattr(clip.train, "checkpoint_path", lambda name, root: Path(root) / "fake.pt")
-    monkeypatch.setattr(clip.train, "expected_sha256", lambda name: "0" * 64)
+    monkeypatch.setattr(cafe_sorter.train, "ClipEmbedder", lambda *args, **kwargs: MeanColourEmbedder())
+    monkeypatch.setattr(cafe_sorter.train, "checkpoint_path", lambda name, root: Path(root) / "fake.pt")
+    monkeypatch.setattr(cafe_sorter.train, "expected_sha256", lambda name: "0" * 64)
 
 
 @pytest.mark.parametrize("command", [
@@ -76,13 +76,13 @@ def test_train_fails_when_readable_images_are_fewer_than_folds(tmp_path: Path, f
     for i in range(3):  # people: 6 files, only 3 decodable
         (data / "people" / f"{i}.jpg").write_bytes(b"garbage")
     with pytest.raises(ValueError, match="people: 3"):
-        clip.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=5)
+        cafe_sorter.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=5)
     assert not (tmp_path / "models").exists()
 
 
 def test_train_succeeds_with_enough_readable_images(tmp_path: Path, fake_backbone: None) -> None:
     data = make_dataset(tmp_path / "train", per_class=6)
-    report = clip.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=3)
+    report = cafe_sorter.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=3)
     assert report.train_counts == {name: 6 for name in CLASS_NAMES}
     assert (tmp_path / "models" / CLASSIFIER_FILE).is_file()
 
@@ -98,7 +98,7 @@ def test_colour_stand_in_matches_classes() -> None:
 
 
 def test_duplicate_check_finds_copies_and_recolours_but_not_other_images(tmp_path: Path) -> None:
-    from clip.duplicates import find_duplicates
+    from cafe_sorter.duplicates import find_duplicates
 
     ref = make_image(tmp_path / "train" / "people" / "a.jpg", "people", size=(64, 48))
     make_image(tmp_path / "train" / "interior" / "b.jpg", "interior", size=(64, 48))
@@ -139,7 +139,7 @@ def test_groups_file_must_cover_every_image(tmp_path: Path, fake_backbone: None)
     groups = tmp_path / "groups.csv"
     groups.write_text("class,filename,group\npeople,0.jpg,a\n")
     with pytest.raises(ValueError, match="have no group"):
-        clip.train.train(data, tmp_path / "m", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=2, groups_file=groups)
+        cafe_sorter.train.train(data, tmp_path / "m", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=2, groups_file=groups)
     assert not (tmp_path / "m").exists()
 
 
@@ -183,8 +183,8 @@ def test_cli_train_nested_layout_with_class_relative_filenames(tmp_path: Path, f
 def test_load_groups_maps_nested_photo_to_its_class(tmp_path: Path) -> None:
     photo = make_image(tmp_path / "train" / "people" / "session" / "photo.jpg", "people")
     manifest = _write_manifest(tmp_path / "m.csv", [["people", "photo.jpg", "cafe-a"]])
-    assert clip.train.load_groups(manifest, [photo], tmp_path / "train") == ["cafe-a"]
-    assert clip.train.class_and_relpath(photo, tmp_path / "train") == ("people", "session/photo.jpg")
+    assert cafe_sorter.train.load_groups(manifest, [photo], tmp_path / "train") == ["cafe-a"]
+    assert cafe_sorter.train.class_and_relpath(photo, tmp_path / "train") == ("people", "session/photo.jpg")
 
 
 def test_cli_train_rejects_bare_filename_shared_by_nested_photos(tmp_path: Path, fake_backbone: None,

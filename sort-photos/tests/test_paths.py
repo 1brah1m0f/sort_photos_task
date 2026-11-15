@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-import clip
-from clip import config
-from clip.cli import main
-from clip.predict import PhotoClassifier, load_artifact
+import cafe_sorter
+from cafe_sorter import config
+from cafe_sorter.cli import main
+from cafe_sorter.predict import PhotoClassifier, load_artifact
 from conftest import make_image
 
-PROJECT = Path(clip.__file__).resolve().parent.parent
+PROJECT = Path(cafe_sorter.__file__).resolve().parent.parent
 
 
 def test_project_root_is_the_package_parent() -> None:
@@ -55,3 +55,12 @@ def test_cli_sort_from_another_directory_uses_package_model_paths(tmp_path: Path
     assert main(["sort", "--input", "in", "--output", "out"]) == 0
     assert seen == {"model_dir": PROJECT / "models", "backbone_dir": PROJECT / "models" / "backbone"}
     assert (workdir / "out" / "People" / "a.jpg").is_file()
+
+
+def test_python_m_cafe_sorter_runs_from_another_directory(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    done = subprocess.run([sys.executable, "-m", "cafe_sorter", "--help"], cwd=tmp_path, capture_output=True, text=True)
+    assert done.returncode == 0
+    assert done.stdout.startswith("usage: photo-sorter")

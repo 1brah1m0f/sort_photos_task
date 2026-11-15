@@ -66,4 +66,4 @@ audited labels. The People and Food & Drinks test images (COCO, Food-101/Wikimed
 Labels were assigned by the rule from the images alone, **before any prediction was run** on them (timestamps in
 `labeled_at_utc`). Photos with a prominent second subject are marked `mixed_subject=yes`, and `label_reason`
 explains the choice. To re-evaluate with your own labels, move files between class folders and re-run
-`python -m clip evaluate`.
+`photo-sorter evaluate`.
