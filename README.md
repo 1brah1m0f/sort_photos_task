@@ -1,72 +1,96 @@
-# sort_photos_task
+# Café Photo Sorter
 
-A local Python CLI that copies a folder of mixed café photos into three albums: **Food & Drinks**,
-**People** and **Interior**. It decides from image content only (frozen CLIP ViT-B/32 embeddings +
-logistic regression), never touches the originals, and runs offline after a one-time model download.
+A café owner has a folder of mixed photos. This command-line tool copies each one into one of three albums,
+**Food & Drinks**, **People** or **Interior**, deciding from the image content alone, never the filename.
+It runs entirely on your machine: after setup and a one-time model download, sorting works offline and
+the original photos are never modified.
 
-The project lives in [`sort-photos/`](sort-photos/). Full documentation, results and limitations are in
-[`sort-photos/README.md`](sort-photos/README.md).
+**Headline result:** on 45 real café photos from 35 venue/photographer groups that the model never saw,
+the retrained classifier sorts **43 / 45** correctly, up from **25 / 45** for the first version. The first
+version put **0 / 15** photos of people into People; the retrained one gets **13 / 15**.
 
-## Quickest path: setup to sorted albums
+## Quick start
 
-Requires Python 3.11+. CPU install, in two steps:
+Requires Python 3.11+ and git. Installs CPU-only PyTorch (no GPU needed).
 
 ```bash
-cd sort-photos
-python3.11 -m venv .venv && source .venv/bin/activate
+git clone https://github.com/1brah1m0f/sort_photos_task.git
+cd sort_photos_task/sort-photos
 
-# step 1: CPU builds of the pinned torch/torchvision from the PyTorch index
+python3.11 -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+
+# install in two steps: CPU builds of torch/torchvision, then the project and its pinned dependencies
 python -m pip install torch==2.15.0 torchvision==0.29.2 --index-url https://download.pytorch.org/whl/cpu
-# step 2: the project and the remaining pinned dependencies from PyPI
-python -m pip install -e ".[dev]"
+python -m pip install -e .
 
-# one-time download of the CLIP weights (~340 MB) into models/backbone/ (the only step that needs internet)
+# one-time download of the CLIP image model (~340 MB) into models/backbone/; the only step that needs internet
 python -m clip download-model
 
-# sort a folder (the trained classifier in models/ is included in the repo; no training needed)
-python -m clip sort --input /path/to/photos --output /path/to/albums --recursive
+# try it on photos shipped with the repo (copied to a folder with no labels in the path)
+mkdir -p ~/cafe_photos
+cp data/holdout_fresh/*/*.jpg ~/cafe_photos/
+
+# sort them with the included trained classifier (no training needed)
+python -m clip sort --input ~/cafe_photos --output ~/cafe_albums
 ```
 
-`/path/to/albums` now contains `Food & Drinks/`, `People/`, `Interior/` and `predictions.csv`.
+To sort your own photos, point `--input` at your folder; add `--recursive` to include sub-folders.
 The output folder must not be inside the input folder.
 
-## Retrain
+**What you get** in `~/cafe_albums`:
 
-```bash
-cd sort-photos
-python -m clip train --data data/train --out models/   # venue-grouped CV over C × class_weight (groups: data/manifest.csv)
+```
+cafe_albums/
+├── Food & Drinks/      copies of the photos predicted as food or drinks
+├── Interior/           copies of the photos predicted as interior
+├── People/             copies of the photos predicted as people
+└── predictions.csv     one row per copied photo
 ```
 
-## Evaluate (reproduces the numbers below)
+`predictions.csv` columns: `original_path, album, confidence, low_confidence, copied_to, p_food_drinks,
+p_people, p_interior`. The first row from the Quick start run above:
 
-```bash
-cd sort-photos
-python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh                                   # retrained
-python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh/baseline --model-dir models/baseline  # shipped baseline
-python -m clip evaluate --data data/holdout_cafe  --report-dir reports/holdout_cafe                                    # diagnostic set
-python -m clip evaluate --data data/test                                                                               # benchmark split
+```
+original_path,album,confidence,low_confidence,copied_to,p_food_drinks,p_people,p_interior
+/home/you/cafe_photos/04f929838b0af618a3f0c1bc.jpg,People,0.5839,False,/home/you/cafe_albums/People/04f929838b0af618a3f0c1bc.jpg,0.1707,0.5839,0.2454
 ```
 
-## Results
+Files are copied, never moved or renamed. Corrupt and non-image files are skipped with a warning, and name
+clashes get `_1`, `_2`, …. Exit status: `0` success, including when some files were skipped; `1` every
+attempted copy failed; `2` invalid arguments, unsafe paths or a missing model.
 
-The default model in `sort-photos/models/` was retrained on audited labels plus 171 licensed café photos
-from 88 venue/photographer groups. The first shipped classifier is kept in `models/baseline/` for comparison.
+## Results: same 45 fresh café photos, two models
 
-| Set | Baseline | Retrained |
+| | First model | Retrained model |
 |---|---|---|
-| **Fresh café holdout** (45 photos, 35 venue groups absent from training) | 25 / 45 | **43 / 45** |
-| People recall on the fresh holdout | 0 / 15 | **13 / 15** |
-| Food & Drinks / Interior recall on the fresh holdout | 10 / 15, 15 / 15 | 15 / 15, 15 / 15 |
-| `holdout_cafe` (diagnostic, inspected earlier) | 26 / 45 | 43 / 45 |
-| Benchmark split, audited labels (original scene labels) | 41 / 45 (45 / 45) | 44 / 45 (40 / 45) |
+| **Overall** | 25 / 45 (55.6%) | **43 / 45 (95.6%)** |
+| Food & Drinks: correct (recall) | 10 / 15 | **15 / 15** |
+| **People: correct (recall)** | **0 / 15** | **13 / 15** |
+| Interior: correct (recall) | 15 / 15 | 15 / 15 |
+| Interior precision (how often "Interior" was right) | 0.43 | 0.94 |
 
-Details, the label audit and a difficult example: [`sort-photos/README.md#results`](sort-photos/README.md#results).
+The first model sent every café People photo to Interior. That is why its Interior recall looks perfect while
+its precision is low: Interior was simply its default answer for café scenes. The retrained model uses the same
+frozen CLIP backbone and logistic regression, trained on audited labels plus 171 licensed café photos. None of
+the 45 test photos, and none of their venues or photographers, were used for training or model selection.
+
+- Full evaluation, training details, a difficult example and limitations: [`sort-photos/README.md`](sort-photos/README.md#results)
+- Reports: [retrained](sort-photos/reports/holdout_fresh/evaluation.md) · [first model](sort-photos/reports/holdout_fresh/baseline/evaluation.md) · [confusion matrix](sort-photos/reports/holdout_fresh/confusion_matrix.png)
+
+Reproduce both columns (from `sort-photos/`, after the Quick start; runs offline):
+
+```bash
+python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh
+python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh/baseline --model-dir models/baseline
+```
 
 ## Tests
 
 ```bash
 cd sort-photos
+python -m pip install -e ".[dev]"
 python -m pytest
 ```
 
-CI runs the same two-step install and the tests: [`.github/workflows/test.yml`](.github/workflows/test.yml).
+CI runs the same two-step install and the test suite: [`.github/workflows/test.yml`](.github/workflows/test.yml).

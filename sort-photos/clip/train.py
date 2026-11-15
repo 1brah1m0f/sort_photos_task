@@ -3,6 +3,7 @@ import csv
 import json
 import logging
 import platform
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -78,28 +79,67 @@ def check_class_counts(counts: Dict[str, int], folds: int, skipped: int = 0) -> 
                          "Add images or lower --folds. No model was written.")
 
 
-def load_groups(groups_file: Path, paths: Sequence[Path]) -> List[str]:
+def class_and_relpath(path: Path, data_dir: Path) -> Tuple[str, str]:
+    """``(class, path inside the class folder)`` for an image under ``data_dir/<class>/...``.
+
+    ``train/people/session/photo.jpg`` -> ``("people", "session/photo.jpg")``.
+    """
+    rel = path.relative_to(data_dir)
+    if len(rel.parts) < 2:
+        raise ValueError(f"{path} is not inside a class folder of {data_dir}")
+    return rel.parts[0], Path(*rel.parts[1:]).as_posix()
+
+
+def load_groups(groups_file: Path, paths: Sequence[Path], data_dir: Path) -> List[str]:
     """Return the CV group (venue or source collection) of each image.
 
-    ``groups_file`` is a CSV with ``class``, ``filename`` and ``group`` columns; an image is matched by
-    its class folder and file name. Groups only decide how cross-validation splits the data.
+    ``groups_file`` is a CSV with ``class``, ``filename`` and ``group`` columns (other columns are ignored).
+    The class of an image is its top-level folder under ``data_dir``, however deeply it is nested.
+    ``filename`` is either the path inside the class folder (``session/photo.jpg``) or, when that name is
+    unique within the class, just the file name (``photo.jpg``). Groups only decide how cross-validation
+    splits the data.
 
     Raises
     ------
     ValueError
-        If the CSV lacks the columns or any image has no group.
+        If the CSV lacks the columns, a row is duplicated with conflicting groups, a bare file name matches
+        several images of one class, or an image has no group. Nothing is trained in that case.
     """
     with open(groups_file, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         if not {"class", "filename", "group"} <= set(reader.fieldnames or ()):
             raise ValueError(f"{groups_file} needs 'class', 'filename' and 'group' columns")
-        table = {(row["class"], row["filename"]): row["group"] for row in reader if row["group"]}
-    groups, missing = [], []
-    for path in paths:
-        group = table.get((path.parent.name, path.name))
-        if group is None:
-            missing.append(f"{path.parent.name}/{path.name}")
+        table: Dict[Tuple[str, str], str] = {}
+        conflicts: List[str] = []
+        for line, row in enumerate(reader, start=2):
+            if not row["group"]:
+                continue
+            key = (row["class"], row["filename"].replace("\\", "/").strip("/"))
+            if key in table and table[key] != row["group"]:
+                conflicts.append(f"line {line}: {key[0]}/{key[1]} is listed with groups {table[key]!r} and {row['group']!r}")
+            table.setdefault(key, row["group"])
+    if conflicts:
+        raise ValueError(f"Ambiguous rows in {groups_file}: " + "; ".join(conflicts[:3]) + ". No model was written.")
+
+    located = [class_and_relpath(p, data_dir) for p in paths]
+    basename_count = Counter((cls, Path(rel).name) for cls, rel in located)
+    groups: List[str] = []
+    missing: List[str] = []
+    ambiguous: List[str] = []
+    for cls, rel in located:
+        group = table.get((cls, rel))
+        if group is None and (cls, Path(rel).name) in table:
+            if basename_count[(cls, Path(rel).name)] > 1:
+                ambiguous.append(f"{cls}/{rel}")
+            else:
+                group = table[(cls, Path(rel).name)]
+        if group is None and f"{cls}/{rel}" not in ambiguous:
+            missing.append(f"{cls}/{rel}")
         groups.append(group or "")
+    if ambiguous:
+        raise ValueError(f"{len(ambiguous)} training images share a file name inside their class and the row in "
+                         f"{groups_file} names only the file (e.g. {', '.join(ambiguous[:3])}). Use the path inside the "
+                         "class folder in the 'filename' column, e.g. 'session/photo.jpg'. No model was written.")
     if missing:
         raise ValueError(f"{len(missing)} training images have no group in {groups_file} "
                          f"(e.g. {', '.join(missing[:3])}). No model was written.")
@@ -174,7 +214,7 @@ def train_from_embedder(data_dir: Path, embedder: Embedder, batch_size: int, see
         raise ValueError(f"--folds must be at least 2, got {folds}")
     set_seed(seed)
     paths, labels = collect_labeled_images(data_dir)
-    path_groups = dict(zip(paths, load_groups(groups_file, paths))) if groups_file is not None else None
+    path_groups = dict(zip(paths, load_groups(groups_file, paths, data_dir))) if groups_file is not None else None
     features, embedded, skipped = embed_paths(paths, embedder, batch_size, progress, desc="Embedding train")
     keep = {p: i for i, p in enumerate(paths)}
     y = labels[[keep[p] for p in embedded]]

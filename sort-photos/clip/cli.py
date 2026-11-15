@@ -97,6 +97,12 @@ def cmd_sort(args: argparse.Namespace) -> int:
     for path, why in result.skipped:
         print(f"  {path}: {why}")
     print(f"Predictions: {result.output_dir / config.PREDICTIONS_FILE}")
+    if result.copy_failures:
+        print(f"Copy failures: {len(result.copy_failures)} of {len(result.copy_failures) + len(result.sorted_files)} "
+              "attempted copies failed (no incomplete files were left in the albums).", file=sys.stderr)
+    if result.all_copies_failed:
+        print("Error: every copy failed; nothing was sorted.", file=sys.stderr)
+        return 1
     return 0
 
 

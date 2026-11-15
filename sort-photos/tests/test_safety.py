@@ -165,3 +165,74 @@ def test_sort_reports_failed_copy_and_continues(photos: Path, tmp_path: Path, cl
     assert not (out / "Interior" / "x.png").exists()
     for item in result.sorted_files:
         assert item.copied_to.read_bytes() == item.original_path.read_bytes()
+
+
+# --- exit status of `python -m clip sort` when copies fail ----------------------------------------------------------
+
+@pytest.fixture
+def cli_with_classifier(classifier: PhotoClassifier, monkeypatch: pytest.MonkeyPatch):
+    """Run the real CLI with the colour classifier instead of loading CLIP weights."""
+    from clip.cli import main
+    from clip.predict import PhotoClassifier as Loaded
+
+    monkeypatch.setattr(Loaded, "load", lambda *args, **kwargs: classifier)
+    return main
+
+
+def _failing_copy2(monkeypatch: pytest.MonkeyPatch, fail_names: set) -> None:
+    import clip.fileops as fileops
+
+    real_copy2 = fileops.shutil.copy2
+
+    def copy2(src, dst):
+        if fail_names == {"*"} or Path(src).name in fail_names:
+            Path(dst).write_bytes(Path(src).read_bytes()[:10])  # partial write, then failure
+            raise OSError(28, "No space left on device")
+        return real_copy2(src, dst)
+
+    monkeypatch.setattr(fileops.shutil, "copy2", copy2)
+
+
+def _album_files(out: Path) -> list:
+    return sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file() and p.name != PREDICTIONS_FILE)
+
+
+def test_cli_sort_exits_1_when_every_copy_fails(photos: Path, tmp_path: Path, cli_with_classifier,
+                                                monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    _failing_copy2(monkeypatch, {"*"})
+    (photos / "corrupt.jpg").write_bytes(b"\xff\xd8\xff not a jpeg")
+    before = tree_hashes(photos)
+    out = tmp_path / "out"
+    code = cli_with_classifier(["sort", "--input", str(photos), "--output", str(out), "--recursive"])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "Copy failures: 4 of 4" in captured.err and "every copy failed" in captured.err
+    assert _album_files(out) == []  # no empty or partial images left behind
+    assert tree_hashes(photos) == before
+
+
+def test_cli_sort_partial_copy_failure_still_succeeds(photos: Path, tmp_path: Path, cli_with_classifier,
+                                                      monkeypatch: pytest.MonkeyPatch,
+                                                      capsys: pytest.CaptureFixture) -> None:
+    _failing_copy2(monkeypatch, {"x.png"})
+    before = tree_hashes(photos)
+    out = tmp_path / "out"
+    code = cli_with_classifier(["sort", "--input", str(photos), "--output", str(out), "--recursive"])
+    assert code == 0
+    assert "Copy failures: 1 of 4" in capsys.readouterr().err
+    assert _album_files(out) == ["Food & Drinks/a1b2.jpg", "Food & Drinks/q.webp", "People/IMG_0001.JPEG"]
+    for rel in _album_files(out):
+        assert (out / rel).read_bytes() == next(photos.rglob(Path(rel).name)).read_bytes()
+    assert tree_hashes(photos) == before
+
+
+def test_cli_sort_only_corrupt_files_is_not_a_copy_failure(tmp_path: Path, cli_with_classifier,
+                                                           capsys: pytest.CaptureFixture) -> None:
+    src = tmp_path / "photos"
+    src.mkdir()
+    (src / "broken.jpg").write_bytes(b"garbage")
+    (src / "notes.txt").write_text("hi")
+    code = cli_with_classifier(["sort", "--input", str(src), "--output", str(tmp_path / "out")])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "Skipped: 2" in captured.out and "Copy failures" not in captured.err

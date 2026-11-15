@@ -34,6 +34,12 @@ class SortResult:
     albums: Dict[str, Path]
     sorted_files: List[SortedFile] = field(default_factory=list)
     skipped: List[Skipped] = field(default_factory=list)
+    copy_failures: List[Skipped] = field(default_factory=list)
+
+    @property
+    def all_copies_failed(self) -> bool:
+        """True if at least one copy was attempted and none succeeded."""
+        return bool(self.copy_failures) and not self.sorted_files
 
     def counts(self) -> Dict[str, int]:
         """Number of photos copied into each album."""
@@ -105,7 +111,9 @@ def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, 
                         copied_to = copy_into(prediction.path, result.albums[album])
                     except OSError as exc:  # copy_into already removed its incomplete output
                         logger.warning("Could not copy %s: %s", prediction.path, exc)
-                        result.skipped.append((prediction.path, f"copy failed: {type(exc).__name__}: {exc}"))
+                        failure = (prediction.path, f"copy failed: {type(exc).__name__}: {exc}")
+                        result.copy_failures.append(failure)
+                        result.skipped.append(failure)
                         continue
                     result.sorted_files.append(SortedFile(
                         original_path=prediction.path,

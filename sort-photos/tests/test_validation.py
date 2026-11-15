@@ -141,3 +141,82 @@ def test_groups_file_must_cover_every_image(tmp_path: Path, fake_backbone: None)
     with pytest.raises(ValueError, match="have no group"):
         clip.train.train(data, tmp_path / "m", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=2, groups_file=groups)
     assert not (tmp_path / "m").exists()
+
+
+# --- training labels and groups resolved from the class folder -------------------------------------------------------
+
+def _write_manifest(path: Path, rows: list) -> Path:
+    import csv
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["class", "filename", "group"])
+        writer.writerows(rows)
+    return path
+
+
+def _nested_dataset(root: Path) -> Path:
+    """Every class has two sessions that reuse the same file names: <class>/session{0,1}/{0,1,2}.jpg"""
+    for name in CLASS_NAMES:
+        for session in range(2):
+            for i in range(3):
+                make_image(root / name / f"session{session}" / f"{i}.jpg", name)
+    return root
+
+
+def test_cli_train_nested_layout_with_class_relative_filenames(tmp_path: Path, fake_backbone: None) -> None:
+    import json
+
+    data = _nested_dataset(tmp_path / "data" / "train")
+    rows = [[name, f"session{s}/{i}.jpg", f"venue{s}-{i % 2}"] for name in CLASS_NAMES for s in range(2) for i in range(3)]
+    _write_manifest(tmp_path / "data" / "manifest.csv", rows)
+    out = tmp_path / "models"
+    code = main(["train", "--data", str(data), "--out", str(out), "--backbone-dir", str(tmp_path), "--folds", "2"])
+    assert code == 0
+    training = json.loads((out / METADATA_FILE).read_text())["training"]
+    # labels come from the class folder, not from the 'session' sub-folder
+    assert training["train_counts"] == {name: 6 for name in CLASS_NAMES}
+    assert training["cv_grouped"] and training["n_groups"] == 4
+
+
+def test_load_groups_maps_nested_photo_to_its_class(tmp_path: Path) -> None:
+    photo = make_image(tmp_path / "train" / "people" / "session" / "photo.jpg", "people")
+    manifest = _write_manifest(tmp_path / "m.csv", [["people", "photo.jpg", "cafe-a"]])
+    assert clip.train.load_groups(manifest, [photo], tmp_path / "train") == ["cafe-a"]
+    assert clip.train.class_and_relpath(photo, tmp_path / "train") == ("people", "session/photo.jpg")
+
+
+def test_cli_train_rejects_bare_filename_shared_by_nested_photos(tmp_path: Path, fake_backbone: None,
+                                                                 capsys: pytest.CaptureFixture) -> None:
+    data = _nested_dataset(tmp_path / "data" / "train")
+    rows = [[name, f"{i}.jpg", f"venue{i}"] for name in CLASS_NAMES for i in range(3)]  # bare names, ambiguous
+    _write_manifest(tmp_path / "data" / "manifest.csv", rows)
+    out = tmp_path / "models"
+    code = main(["train", "--data", str(data), "--out", str(out), "--backbone-dir", str(tmp_path), "--folds", "2"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "share a file name inside their class" in err and "session0/0.jpg" in err
+    assert not out.exists()
+
+
+def test_cli_train_rejects_conflicting_manifest_rows(tmp_path: Path, fake_backbone: None,
+                                                     capsys: pytest.CaptureFixture) -> None:
+    data = make_dataset(tmp_path / "data" / "train", per_class=4)
+    rows = [[name, f"{i}.jpg", f"g{i}"] for name in CLASS_NAMES for i in range(4)] + [["people", "0.jpg", "other"]]
+    _write_manifest(tmp_path / "data" / "manifest.csv", rows)
+    code = main(["train", "--data", str(data), "--out", str(tmp_path / "m"), "--backbone-dir", str(tmp_path), "--folds", "2"])
+    assert code == 2
+    assert "Ambiguous rows" in capsys.readouterr().err
+
+
+def test_cli_train_flat_layout_with_bare_filenames(tmp_path: Path, fake_backbone: None) -> None:
+    import json
+
+    data = make_dataset(tmp_path / "data" / "train", per_class=4)
+    _write_manifest(tmp_path / "data" / "manifest.csv",
+                    [[name, f"{i}.jpg", f"cafe{i % 2}"] for name in CLASS_NAMES for i in range(4)])
+    code = main(["train", "--data", str(data), "--out", str(tmp_path / "m"), "--backbone-dir", str(tmp_path), "--folds", "2"])
+    assert code == 0
+    training = json.loads((tmp_path / "m" / METADATA_FILE).read_text())["training"]
+    assert training["n_groups"] == 2 and training["train_counts"] == {name: 4 for name in CLASS_NAMES}
