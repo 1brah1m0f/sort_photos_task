@@ -5,9 +5,9 @@ A café owner has a folder of mixed photos. This command-line tool copies each o
 It runs entirely on your machine: after setup and a one-time model download, sorting works offline and
 the original photos are never modified.
 
-**Headline result:** on 45 real café photos from 35 venue/photographer groups that the model never saw,
-the retrained classifier sorts **43 / 45** correctly, up from **25 / 45** for the first version. The first
-version put **0 / 15** photos of people into People; the retrained one gets **13 / 15**.
+**Headline result.** On the fresh holdout of 45 café photos from 35 venue/photographer groups, the
+retrained classifier sorts **43 / 45** correctly, up from **25 / 45** for the first version. People
+recall rises from **0 / 15** to **13 / 15**.
 
 ## Quick start
 
@@ -72,8 +72,9 @@ attempted copy failed; `2` invalid arguments, unsafe paths or a missing model.
 
 The first model sent every café People photo to Interior. That is why its Interior recall looks perfect while
 its precision is low: Interior was simply its default answer for café scenes. The retrained model uses the same
-frozen CLIP backbone and logistic regression, trained on audited labels plus 171 licensed café photos. None of
-the 45 test photos, and none of their venues or photographers, were used for training or model selection.
+frozen CLIP backbone and logistic regression, trained on audited labels plus 171 licensed café photos.
+The fresh holdout was reserved for evaluation. The manifests show zero overlap with training in recorded
+groups, named venues and listed photographers. The holdout manifest names a venue for 6 of the 45 photos.
 
 - Full evaluation, training details, a difficult example and limitations: [`sort-photos/README.md`](sort-photos/README.md#results)
 - Reports: [retrained](sort-photos/reports/holdout_fresh/evaluation.md) · [first model](sort-photos/reports/holdout_fresh/baseline/evaluation.md) · [confusion matrix](sort-photos/reports/holdout_fresh/confusion_matrix.png)
@@ -87,8 +88,9 @@ python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_f
 
 ## Tests
 
+After the Quick start, run these commands from `sort-photos/` in the active virtual environment.
+
 ```bash
-cd sort-photos
 python -m pip install -e ".[dev]"
 python -m pytest
 ```

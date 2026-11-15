@@ -137,8 +137,8 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 unshare -rn python -m clip sort --input 
 
 ## Train on your own photos
 
-Put labelled photos in one folder per class. Sub-folders inside a class folder are fine: the class is
-always the **top-level** folder under `--data`.
+Put labelled photos in one folder per class. You can nest photos inside a class folder. The class
+is the top-level folder under `--data`.
 
 ```
 my_cafe/
@@ -147,38 +147,43 @@ my_cafe/
 │   │   ├── latte.jpg
 │   │   └── 2024-05/latte.jpg      # same file name as above, in a sub-folder
 │   ├── people/
-│   │   └── barista_anna.jpg
+│   │   ├── barista_anna.jpg
+│   │   └── barista_mina.jpg
 │   └── interior/
-│       └── window_seats.jpg
+│       ├── window_seats.jpg
+│       └── counter.jpg
 └── manifest.csv                    # optional: CV groups (picked up automatically from <data>/../manifest.csv)
 ```
 
-`manifest.csv` needs the columns `class,filename,group`; other columns are ignored. `filename` is the path
-inside the class folder. A bare file name also works when it is unique within its class. `group` is the venue,
-shoot or photographer, so similar photos stay in the same CV fold:
+The manifest uses the columns `class`, `filename` and `group`. Use the path inside the class folder
+for `filename`. A bare file name also works when it is unique within its class. Use the venue, shoot
+or photographer as the group so related photos stay together in cross-validation.
 
 ```csv
 class,filename,group
 food_drinks,latte.jpg,cafe-rosa
-food_drinks,2024-05/latte.jpg,cafe-rosa
+food_drinks,2024-05/latte.jpg,cafe-milano
 people,barista_anna.jpg,cafe-rosa
-interior,window_seats.jpg,cafe-milano
+people,barista_mina.jpg,cafe-milano
+interior,window_seats.jpg,cafe-rosa
+interior,counter.jpg,cafe-milano
 ```
 
+Run the six-photo example from `sort-photos/` with `--folds 2`. Each of its two groups has one photo
+from every class. The default five-fold run requires at least five readable photos per class and,
+when using a manifest, at least five distinct groups overall.
+
 ```bash
-python -m clip train --data my_cafe/train --out models/my_cafe                # grouped CV, uses my_cafe/manifest.csv
-python -m clip train --data my_cafe/train --out models/my_cafe --no-groups    # plain stratified CV, no manifest needed
+python -m clip train --data my_cafe/train --out models/my_cafe --folds 2
 python -m clip sort --input ~/new_photos --output ~/albums --model-dir models/my_cafe
 ```
 
-Training stops with a clear error, writing **no** model files, when:
-- a class has fewer readable images than `--folds` (default 5);
-- a photo has no group;
-- a bare file name matches several photos of one class;
-- the manifest lists the same photo with two different groups.
+Add `--no-groups` to the training command to run ordinary stratified cross-validation without a
+manifest. When you use a manifest, training stops before writing the model if a photo has no group,
+a bare filename is ambiguous, or the same photo is assigned to conflicting groups.
 
-Grouped CV also needs at least `--folds` groups. To add your photos to the shipped data instead, copy them
-into `data/train/<class>/` and add `class,filename,group` rows to `data/manifest.csv`.
+To add your photos to the shipped dataset, copy them into `data/train/<class>/` and add matching
+`class,filename,group` rows to `data/manifest.csv`.
 
 ## Results
 
@@ -187,7 +192,7 @@ into `data/train/<class>/` and add `class,filename,group` rows to `data/manifest
 | Set | Photos | Role |
 |---|---|---|
 | **`data/holdout_fresh`** | 45 (15 per class) | **The main result.** Café photos from 35 venue/photographer groups not used for training or model selection; labels frozen before any prediction. |
-| `data/holdout_cafe` | 45 (15 per class) | Earlier café holdout. It was inspected while diagnosing the first model, so it is now only a **diagnostic** set. None of its photos or photographers are in training. |
+| `data/holdout_cafe` | 45 (15 per class) | Earlier café holdout, inspected while diagnosing the first model. Exact-file and listed-photographer checks found zero overlap with training. |
 | `data/test` | 45 | **Historical benchmark** from the original dataset (COCO, Places365, Food-101). Its sources match the first model's training data, so it is easy and was misleading. |
 
 ### Fresh café holdout: 25 / 45 → **43 / 45**
@@ -228,11 +233,11 @@ Full reports: [retrained](reports/holdout_fresh/evaluation.md) · [first model](
 **About the set.**
 - 45 Wikimedia Commons café photos under CC0, public-domain, CC BY or CC BY-SA terms, 15 per class, 6 of them
   mixed-subject.
-- They come from **35 venue/photographer groups**. None of those groups, photographers or venue categories
-  appear in the training data or in `holdout_cafe`.
-- The `venue` field is filled for only 6 of the 45 photos (for example Caffè Giardino, Café Guarany,
-  Konditorei Buchwald) and blank for the other 39. Commons often does not record the café, so separation
-  relies on the group, which combines photographer and Commons categories.
+- The fresh holdout has **35 venue/photographer groups**. The manifests show zero overlap with training
+  in recorded groups, named venues and listed photographers. The fresh and diagnostic sets also have
+  distinct listed photographers.
+- A venue is named for 6 of the 45 photos, including shots from Caffè Giardino, Café Guarany and
+  Konditorei Buchwald. For the other 39, the recorded groups rely on photographers and Commons categories.
 - `check-duplicates` found 0 exact, perceptual-hash or near-duplicate (CLIP cosine ≥ 0.95) matches against
   train, test and `holdout_cafe`. The closest pair (cosine 0.938) is two different latte cups.
 - Labels were frozen at 2026-11-15T13:35:09Z, before any prediction. Source, author, license and label reason
@@ -241,7 +246,7 @@ Full reports: [retrained](reports/holdout_fresh/evaluation.md) · [first model](
 **How much to trust it.** 45 photos is a small sample: each photo is worth 2.2 percentage points, and
 43 / 45 is statistically consistent with a true accuracy anywhere from roughly 85% to 99%. The People result
 rests on 15 photos. What the set does show clearly is the size of the change. The first model got *no*
-café People photo right, and the retrained one gets most of them, on photos from cafés it has never seen.
+café People photo right on this holdout, and the retrained one gets most of them.
 These are public Commons photos, often well composed. A café owner's phone photos of one place may score
 differently, and the best next test is a reviewer's own labelled photos ([commands](#evaluate-your-own-labelled-photos)).
 
