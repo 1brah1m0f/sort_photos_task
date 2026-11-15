@@ -17,6 +17,17 @@ from .config import default_device
 
 logger = logging.getLogger(__name__)
 
+HEIF_EXTENSIONS = frozenset({".heic", ".heif"})
+try:  # iPhone photos: teach Pillow to open HEIC/HEIF
+    from pillow_heif import register_heif_opener
+except ImportError:  # pragma: no cover - depends on the environment
+    HEIF_AVAILABLE = False
+    logger.warning("pillow-heif is not installed: .heic/.heif photos will be skipped. "
+                   "Install it with `pip install pillow-heif` (pinned in requirements.txt).")
+else:
+    register_heif_opener()
+    HEIF_AVAILABLE = True
+
 Skipped = Tuple[Path, str]
 
 
@@ -30,8 +41,11 @@ def open_image(path: Path) -> Image.Image:
     Raises
     ------
     ImageLoadError
-        If the file is missing, corrupt, truncated or not an image.
+        If the file is missing, corrupt, truncated or not an image, or is HEIC/HEIF while
+        pillow-heif is not installed.
     """
+    if not HEIF_AVAILABLE and path.suffix.lower() in HEIF_EXTENSIONS:
+        raise ImageLoadError("HEIC/HEIF support needs the pillow-heif package (pip install pillow-heif)")
     try:
         with Image.open(path) as img:
             img.load()

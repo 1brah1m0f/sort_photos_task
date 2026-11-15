@@ -32,7 +32,7 @@ METADATA_FILE = "classifier.json"
 PREDICTIONS_FILE = "predictions.csv"
 
 # Extensions accepted by the sorter (compared case-insensitively).
-IMAGE_EXTENSIONS: FrozenSet[str] = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"})
+IMAGE_EXTENSIONS: FrozenSet[str] = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"})
 
 BATCH_SIZE = 32
 SEED = 42
