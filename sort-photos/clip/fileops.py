@@ -80,6 +80,38 @@ def validate_output_entries(output_dir: Path, album_names: Iterable[str], file_n
             raise ValueError(f"Output path {path} exists and is not a regular file.")
 
 
+def existing_output(output_dir: Path, album_names: Iterable[str], file_names: Iterable[str]) -> List[Path]:
+    """Entries left by an earlier run: anything inside an album folder, plus output files that exist.
+
+    Symlinks count too (``os.path.lexists``), so a dangling link is reported rather than ignored.
+    """
+    found: List[Path] = []
+    for name in album_names:
+        album = output_dir / name
+        if album.is_dir() and not album.is_symlink():
+            found.extend(sorted(album.iterdir()))
+    found.extend(output_dir / name for name in file_names if os.path.lexists(output_dir / name))
+    return found
+
+
+def read_csv_rows(path: Path, header: Sequence[str]) -> List[List[str]]:
+    """Rows of an existing CSV, re-ordered to ``header`` by column name (missing columns become "").
+
+    Raises
+    ------
+    ValueError
+        If the file has columns that ``header`` does not know, e.g. it was written by a model with
+        different classes, so appending would mix incompatible rows.
+    """
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        unknown = [c for c in (reader.fieldnames or []) if c not in header]
+        if unknown:
+            raise ValueError(f"Cannot append to {path}: it has columns {unknown} that this model does not write. "
+                             "Use a new output folder.")
+        return [[row.get(c) or "" for c in header] for row in reader]
+
+
 def _reserve(path: Path) -> bool:
     """Atomically create an empty ``path``; False if anything (even a dangling symlink) is there."""
     try:

@@ -55,3 +55,12 @@ def photos(tmp_path: Path) -> Path:
     make_image(src / "x.png", "interior")
     make_image(src / "nested" / "q.webp", "food_drinks")
     return src
+
+
+@pytest.fixture
+def cli_with_classifier(classifier: PhotoClassifier, monkeypatch: pytest.MonkeyPatch):
+    """Run the real CLI (``clip.cli.main``) with the colour classifier instead of loading CLIP weights."""
+    from clip.cli import main
+
+    monkeypatch.setattr(PhotoClassifier, "load", lambda *args, **kwargs: classifier)
+    return main

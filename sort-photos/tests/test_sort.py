@@ -49,7 +49,7 @@ def test_filename_collisions(tmp_path: Path, classifier: PhotoClassifier) -> Non
     make_image(src / "photo.jpg", "food_drinks")
     make_image(src / "day2" / "photo.jpg", "food_drinks")
     make_image(out / "Food & Drinks" / "photo.jpg", "people")  # left over from an earlier run
-    sort_folder(src, out, classifier, recursive=True, progress=False)
+    sort_folder(src, out, classifier, recursive=True, progress=False, append=True)
     names = sorted(p.name for p in (out / "Food & Drinks").iterdir())
     assert names == ["photo.jpg", "photo_1.jpg", "photo_2.jpg"]
     assert unique_destination(out / "Food & Drinks", "photo.jpg").name == "photo_3.jpg"

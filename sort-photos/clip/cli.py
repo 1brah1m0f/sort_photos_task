@@ -85,7 +85,8 @@ def cmd_sort(args: argparse.Namespace) -> int:
     from .sorter import sort_folder
 
     classifier = PhotoClassifier.load(args.model_dir, args.backbone_dir, args.device)
-    result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size)
+    result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size,
+                         append=args.append)
     print(f"\nCopied {len(result.sorted_files)} photos into {result.output_dir} (originals unchanged):")
     for album, count in result.counts().items():
         print(f"  {album:<15}{count:>5}")
@@ -96,7 +97,8 @@ def cmd_sort(args: argparse.Namespace) -> int:
     print(f"Skipped: {len(result.skipped)}")
     for path, why in result.skipped:
         print(f"  {path}: {why}")
-    print(f"Predictions: {result.output_dir / config.PREDICTIONS_FILE}")
+    added = f" ({result.previous_rows} earlier + {len(result.sorted_files)} new rows)" if args.append else ""
+    print(f"Predictions: {result.output_dir / config.PREDICTIONS_FILE}{added}")
     if result.copy_failures:
         print(f"Copy failures: {len(result.copy_failures)} of {len(result.copy_failures) + len(result.sorted_files)} "
               "attempted copies failed (no incomplete files were left in the albums).", file=sys.stderr)
@@ -173,6 +175,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--recursive", action="store_true", help="include photos in sub-folders")
     p.add_argument("--min-confidence", type=_probability, default=0.0, help="flag predictions below this probability")
+    p.add_argument("--append", action="store_true",
+                   help="add to an output folder from a previous run (keeps its files, extends predictions.csv)")
     common(p)
     p.set_defaults(func=cmd_sort)
     return parser

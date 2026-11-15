@@ -67,7 +67,7 @@ def test_existing_symlinks_inside_album_are_never_followed(photos: Path, tmp_pat
     victim = tmp_path / "victim.jpg"
     (album / "q.webp").symlink_to(victim)  # dangling link
     before = tree_hashes(photos)
-    sort_folder(photos, out, classifier, recursive=True, progress=False)
+    sort_folder(photos, out, classifier, recursive=True, progress=False, append=True)
     assert tree_hashes(photos) == before
     assert not os.path.lexists(victim)
     assert (album / "a1b2_1.jpg").is_file() and (album / "q_1.webp").is_file()
@@ -168,16 +168,6 @@ def test_sort_reports_failed_copy_and_continues(photos: Path, tmp_path: Path, cl
 
 
 # --- exit status of `python -m clip sort` when copies fail ----------------------------------------------------------
-
-@pytest.fixture
-def cli_with_classifier(classifier: PhotoClassifier, monkeypatch: pytest.MonkeyPatch):
-    """Run the real CLI with the colour classifier instead of loading CLIP weights."""
-    from clip.cli import main
-    from clip.predict import PhotoClassifier as Loaded
-
-    monkeypatch.setattr(Loaded, "load", lambda *args, **kwargs: classifier)
-    return main
-
 
 def _failing_copy2(monkeypatch: pytest.MonkeyPatch, fail_names: set) -> None:
     import clip.fileops as fileops
