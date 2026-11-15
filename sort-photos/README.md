@@ -1,199 +1,205 @@
-# CLIP
+# Café Photo Sorter
 
-[[Blog]](https://openai.com/blog/clip/) [[Paper]](https://arxiv.org/abs/2103.00020) [[Model Card]](model-card.md) [[Colab]](https://colab.research.google.com/github/openai/clip/blob/master/notebooks/Interacting_with_CLIP.ipynb)
+A small command-line tool that sorts a café owner's folder of mixed photos into three albums,
+**Food & Drinks**, **People** and **Interior**, based only on what is in each picture.
+Originals are never touched: every photo is *copied* into its predicted album.
 
-CLIP (Contrastive Language-Image Pre-Training) is a neural network trained on a variety of (image, text) pairs. It can be instructed in natural language to predict the most relevant text snippet, given an image, without directly optimizing for the task, similarly to the zero-shot capabilities of GPT-2 and 3. We found CLIP matches the performance of the original ResNet50 on ImageNet “zero-shot” without using any of the original 1.28M labeled examples, overcoming several major challenges in computer vision.
-
-
+Everything runs locally in Python. After a one-time model download the tool works fully offline.
 
 ## Approach
 
-![CLIP](CLIP.png)
+```
+photo ──► EXIF-upright RGB ──► CLIP ViT-B/32 image encoder (frozen) ──► 512-d embedding ──► logistic regression ──► album
+```
 
+1. **Feature extractor**: the image tower of OpenAI's open-source CLIP ViT-B/32 (MIT license),
+   used frozen. Each photo becomes an L2-normalised 512-dimensional embedding.
+2. **Classifier**: a scikit-learn `LogisticRegression` trained on those embeddings. Its
+   regularisation strength `C` is chosen with 5-fold stratified cross-validation on the training set.
 
+**Why this works with only 50 photos per class.** CLIP was pretrained on ~400M image–text pairs,
+so its embeddings already separate concepts like "a plate of food", "a person" and "a room".
+Fine-tuning a deep network on 150 images would overfit badly. A linear model on frozen features has
+only 3 × 513 parameters, trains in under a second, and only needs to find the directions in
+embedding space that the backbone already encodes. This is the standard "linear probe" setup.
+
+**Only pixels are used.** Predictions depend on decoded pixel data alone. Filenames, folder names
+and EXIF text fields are never read for classification. The EXIF *orientation* tag is applied so
+that rotated phone photos are seen upright. During training and evaluation, folder names are used
+only as labels. A test (`test_prediction_ignores_filename`) checks this.
+
+## Setup
+
+Requires Python ≥ 3.10.
+
+```bash
+cd sort-photos
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt          # CPU-only torch: add --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[dev]"                  # optional: installs the `photo-sorter` command and pytest
+```
+
+A GPU is used automatically when available (`--device cpu` forces the CPU).
 
 ## Usage
 
-First, [install PyTorch 1.7.1](https://pytorch.org/get-started/locally/) (or later) and torchvision, as well as small additional dependencies, and then install this repo as a Python package. On a CUDA GPU machine, the following will do the trick:
+All commands are run from the `sort-photos/` folder. `python -m clip <command> --help` lists all options.
 
 ```bash
-$ conda install --yes -c pytorch pytorch=1.7.1 torchvision cudatoolkit=11.0
-$ pip install ftfy regex tqdm
-$ pip install git+https://github.com/openai/CLIP.git
+# 1. One-time download of the backbone weights (~340 MB) into models/backbone/ (SHA256-verified).
+#    This is the only command that uses the network.
+python -m clip download-model
+
+# 2. Train the classifier on data/train/<class>/ -> models/classifier.joblib + models/classifier.json
+python -m clip train --data data/train --out models/
+
+# 3. Evaluate on held-out photos -> console metrics + reports/evaluation.md + reports/confusion_matrix.png
+python -m clip evaluate --data data/test
+
+# 4. Sort your own photos
+python -m clip sort --input ~/Pictures/cafe --output ~/Pictures/cafe_albums [--recursive] [--min-confidence 0.7]
 ```
 
-Replace `cudatoolkit=11.0` above with the appropriate CUDA version on your machine or `cpuonly` when installing on a machine without a GPU.
+What `sort` does:
 
-```python
-import torch
-import clip
-from PIL import Image
+- creates `Food & Drinks/`, `People/` and `Interior/` inside `--output` and **copies**
+  (`shutil.copy2`) each photo into its predicted album. Originals are never moved, renamed or modified.
+- refuses an output folder that is the input folder or inside it.
+- accepts `.jpg .jpeg .png .webp .bmp .tif .tiff` in any letter case, and applies EXIF orientation.
+- skips corrupt or non-image files with a warning instead of crashing.
+- resolves name collisions by appending `_1`, `_2`, … (for example with `--recursive`, or when re-running into the same output).
+- classifies in batches (`--batch-size`, default 32) with a progress bar.
+- writes `predictions.csv` (`original_path, album, confidence, low_confidence, copied_to, p_food_drinks, p_people, p_interior`).
+- with `--min-confidence`, photos whose top probability is below the threshold are still copied to
+  their best album, but are flagged in the CSV and listed in the console summary.
+- prints a summary: photos per album, low-confidence photos, skipped files.
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
+### Offline use
 
-image = preprocess(Image.open("CLIP.png")).unsqueeze(0).to(device)
-text = clip.tokenize(["a diagram", "a dog", "a cat"]).to(device)
+`download-model` stores the checkpoint at `models/backbone/ViT-B-32.pt`. `train`, `evaluate` and
+`sort` load it **only** from that path. They never download anything and fail with a clear message
+if the file is missing. They also set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`. This was
+verified by running `sort` with the network removed at the OS level:
 
-with torch.no_grad():
-    image_features = model.encode_image(image)
-    text_features = model.encode_text(text)
-    
-    logits_per_image, logits_per_text = model(image, text)
-    probs = logits_per_image.softmax(dim=-1).cpu().numpy()
-
-print("Label probs:", probs)  # prints: [[0.9927937  0.00421068 0.00299572]]
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 unshare -rn python -m clip sort --input demo_in --output demo_out
 ```
 
+### Tests
 
-## API
-
-The CLIP module `clip` provides the following methods:
-
-#### `clip.available_models()`
-
-Returns the names of the available CLIP models.
-
-#### `clip.load(name, device=..., jit=False)`
-
-Returns the model and the TorchVision transform needed by the model, specified by the model name returned by `clip.available_models()`. It will download the model as necessary. The `name` argument can also be a path to a local checkpoint.
-
-The device to run the model can be optionally specified, and the default is to use the first CUDA device if there is any, otherwise the CPU. When `jit` is `False`, a non-JIT version of the model will be loaded.
-
-#### `clip.tokenize(text: Union[str, List[str]], context_length=77)`
-
-Returns a LongTensor containing tokenized sequences of given text input(s). This can be used as the input to the model
-
----
-
-The model returned by `clip.load()` supports the following methods:
-
-#### `model.encode_image(image: Tensor)`
-
-Given a batch of images, returns the image features encoded by the vision portion of the CLIP model.
-
-#### `model.encode_text(text: Tensor)`
-
-Given a batch of text tokens, returns the text features encoded by the language portion of the CLIP model.
-
-#### `model(image: Tensor, text: Tensor)`
-
-Given a batch of images and a batch of text tokens, returns two Tensors, containing the logit scores corresponding to each image and text input. The values are cosine similarities between the corresponding image and text features, times 100.
-
-
-
-## More Examples
-
-### Zero-Shot Prediction
-
-The code below performs zero-shot prediction using CLIP, as shown in Appendix B in the paper. This example takes an image from the [CIFAR-100 dataset](https://www.cs.toronto.edu/~kriz/cifar.html), and predicts the most likely labels among the 100 textual labels from the dataset.
-
-```python
-import os
-import clip
-import torch
-from torchvision.datasets import CIFAR100
-
-# Load the model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load('ViT-B/32', device)
-
-# Download the dataset
-cifar100 = CIFAR100(root=os.path.expanduser("~/.cache"), download=True, train=False)
-
-# Prepare the inputs
-image, class_id = cifar100[3637]
-image_input = preprocess(image).unsqueeze(0).to(device)
-text_inputs = torch.cat([clip.tokenize(f"a photo of a {c}") for c in cifar100.classes]).to(device)
-
-# Calculate features
-with torch.no_grad():
-    image_features = model.encode_image(image_input)
-    text_features = model.encode_text(text_inputs)
-
-# Pick the top 5 most similar labels for the image
-image_features /= image_features.norm(dim=-1, keepdim=True)
-text_features /= text_features.norm(dim=-1, keepdim=True)
-similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-values, indices = similarity[0].topk(5)
-
-# Print the result
-print("\nTop predictions:\n")
-for value, index in zip(values, indices):
-    print(f"{cifar100.classes[index]:>16s}: {100 * value.item():.2f}%")
+```bash
+python -m pytest
 ```
 
-The output will look like the following (the exact numbers may be slightly different depending on the compute device):
+The tests use tiny generated images and a colour-based stand-in for CLIP, so they run in seconds
+without the backbone. They cover: originals unchanged after sorting (SHA256 of every file), the
+three albums being created, corrupt/truncated/non-image files being skipped, filename collisions,
+output-inside-input rejection, the predictions CSV and the low-confidence flag, filename independence,
+EXIF orientation, and building the image encoder from a checkpoint.
+
+## Project structure
 
 ```
-Top predictions:
-
-           snake: 65.31%
-          turtle: 12.29%
-    sweet_pepper: 3.83%
-          lizard: 1.88%
-       crocodile: 1.75%
+sort-photos/
+├── clip/                    # the package (python -m clip ...)
+│   ├── __main__.py          # entry point
+│   ├── cli.py               # argparse CLI: download-model / train / evaluate / sort
+│   ├── config.py            # classes, album names, paths, seeds, device
+│   ├── clip.py              # backbone download (only network use) + local-only loading + preprocessing
+│   ├── model.py             # CLIP ViT image encoder (text tower removed)
+│   ├── features.py          # image decoding (EXIF orientation, corrupt-file handling) + batched embedding
+│   ├── train.py             # stratified CV over C, final fit, saving the model artifact
+│   ├── predict.py           # PhotoClassifier: embeddings -> class probabilities
+│   ├── evaluate.py          # metrics, confusion matrix, Markdown/JSON report
+│   ├── sorter.py            # sort a folder: classify, copy into albums, write predictions.csv
+│   └── fileops.py           # file discovery, folder validation, collision-safe copying
+├── data/                    # train/ and test/ with food_drinks/, people/, interior/ (50 + 15 each) + manifest.csv (sources, licenses)
+├── models/                  # classifier.joblib, classifier.json (classes, backbone name + SHA256, C, CV scores, versions); backbone/ is git-ignored
+├── reports/                 # evaluation.md/json, confusion_matrix.png, difficult_example.jpg
+├── tests/test_sort.py
+├── requirements.txt         # pinned
+└── setup.py
 ```
 
-Note that this example uses the `encode_image()` and `encode_text()` methods that return the encoded features of given inputs.
+## Results
 
+Backbone CLIP ViT-B/32 (frozen) + logistic regression, seed 42, CPU.
 
-### Linear-probe evaluation
+**Cross-validation on the training set** (150 images, 5-fold stratified):
 
-The example below uses [scikit-learn](https://scikit-learn.org/) to perform logistic regression on image features.
+| C | 0.01 | 0.1 | 1 | 10 | **100** | 1000 |
+|---|---|---|---|---|---|---|
+| mean accuracy | 0.913 | 0.913 | 0.927 | 0.940 | **0.947** | 0.947 |
 
-```python
-import os
-import clip
-import torch
+`C = 100` was selected (ties are broken in favour of the first, i.e. the smaller, value).
 
-import numpy as np
-from sklearn.linear_model import LogisticRegression
-from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR100
-from tqdm import tqdm
+**Held-out test set** (45 images not used for training):
 
-# Load the model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load('ViT-B/32', device)
+### 44 / 45 test images correctly classified (97.8%)
 
-# Load the dataset
-root = os.path.expanduser("~/.cache")
-train = CIFAR100(root, download=True, train=True, transform=preprocess)
-test = CIFAR100(root, download=True, train=False, transform=preprocess)
+| Album | Precision | Recall | F1 | Test images |
+|---|---|---|---|---|
+| Food & Drinks | 0.938 | 1.000 | 0.968 | 15 |
+| People | 1.000 | 1.000 | 1.000 | 15 |
+| Interior | 1.000 | 0.933 | 0.966 | 15 |
 
+![Confusion matrix](reports/confusion_matrix.png)
 
-def get_features(dataset):
-    all_features = []
-    all_labels = []
-    
-    with torch.no_grad():
-        for images, labels in tqdm(DataLoader(dataset, batch_size=100)):
-            features = model.encode_image(images.to(device))
+Full report: [reports/evaluation.md](reports/evaluation.md).
 
-            all_features.append(features)
-            all_labels.append(labels)
+**Demo simulation.** The 45 test images were copied into a flat folder with random filenames
+(for example `1d878f9f9cdf.JPG`), along with a corrupt `.jpg` and a `.txt` file. `sort` was then run
+with networking disabled. Result: Food & Drinks 16, People 15, Interior 14; the 2 bad files
+were skipped; all originals were byte-identical afterwards. Matching the copies back to their
+source files by hash gives **44 / 45 correct**, the same as `evaluate`, which confirms that
+predictions do not depend on filenames or folders.
 
-    return torch.cat(all_features).cpu().numpy(), torch.cat(all_labels).cpu().numpy()
+## A difficult example
 
-# Calculate the image features
-train_features, train_labels = get_features(train)
-test_features, test_labels = get_features(test)
+![Difficult example](reports/difficult_example.jpg)
 
-# Perform logistic regression
-classifier = LogisticRegression(random_state=0, C=0.316, max_iter=1000, verbose=1)
-classifier.fit(train_features, train_labels)
+`data/test/interior/337d124eeda7482b9aba84aae4ef9528.jpg`, labelled **Interior** (it comes from the
+Places365 *coffee_shop* scene category), predicted **Food & Drinks**:
 
-# Evaluate using the logistic regression classifier
-predictions = classifier.predict(test_features)
-accuracy = np.mean((test_labels == predictions).astype(float)) * 100.
-print(f"Accuracy = {accuracy:.3f}")
-```
+| Food & Drinks | People | Interior |
+|---|---|---|
+| **0.92** | 0.00 | 0.08 |
 
-Note that the `C` value should be determined via a hyperparameter sweep using a validation split.
+This is the only test error. The photo is a close-up of a bakery display case: sugar-dusted
+bomboloni and pastries fill almost the whole frame, with price cards in front. The "interior" is
+only a sliver of glass counter. The label comes from the scene the photo was taken in, but by
+*main subject*, the criterion the albums use, it is mostly food. The model's answer is arguably
+the more useful one. The case shows the real ambiguity of the task: a café photo often has
+two plausible subjects, and the label depends on what the photographer meant to show.
 
+The next hardest photo is a correct prediction: `data/test/people/4eda754771ad4d60ba25939c7b1efa9f.jpg`
+got People 0.69 / Interior 0.30. It is a vintage black-and-white snapshot of two people on an armchair
+in a living room, with striped curtains, cushions and furniture all around. The people are clearly the subject,
+but so much of the furnished room is visible that part of the probability goes to Interior. With `--min-confidence 0.7` it was the
+one photo flagged in the demo run.
 
-## See Also
+## Limitations and possible improvements
 
-* [OpenCLIP](https://github.com/mlfoundations/open_clip): includes larger and independently trained CLIP models up to ViT-G/14
-* [Hugging Face implementation of CLIP](https://huggingface.co/docs/transformers/model_doc/clip): for easier integration with the HF ecosystem
+- **Small test set.** 45 images means each error moves accuracy by 2.2 points. The 97.8% figure has
+  wide uncertainty, and CV on the training set (94.7% ± 3.4%) is a more cautious estimate.
+- **Single-label albums.** Every photo goes to exactly one album. A barista holding a latte is both
+  "People" and "Food & Drinks". Possible fixes: multi-label output (copy to every album above a
+  threshold) or an "Unsure" album for low-confidence photos.
+- **Domain shift.** The training photos come from public datasets (Food-101, COCO, Places365,
+  Wikimedia Commons; see `data/manifest.csv`). The owner's own photos (lighting, phone camera, their
+  café) may look different. Adding 10–20 of their own labelled photos per album and re-running
+  `train` is the cheapest way to improve.
+- **Fixed classes.** A photo of the menu board, the storefront or a dog is still forced into one of
+  the three albums. A fourth "Other" class or an embedding-distance reject option would help.
+- **Bigger backbones.** `--backbone ViT-B/16` or `ViT-L/14` (with `download-model --backbone ...`)
+  usually give better embeddings, at the cost of speed and download size. DINOv2 or SigLIP would also
+  fit behind the same `Embedder` interface.
+- **Calibration.** Logistic-regression probabilities with a large `C` tend to be over-confident (the error
+  above had 0.92). Choosing `--min-confidence` from a validation set, or temperature scaling, would make the
+  flag more meaningful.
+
+## License and credits
+
+The image-encoder code in `clip/model.py` and `clip/clip.py` is adapted from
+[OpenAI CLIP](https://github.com/openai/CLIP) (MIT, see `LICENSE`). The dataset sources and licenses
+of every photo are listed in `data/manifest.csv`.

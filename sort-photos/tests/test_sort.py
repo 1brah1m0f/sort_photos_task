@@ -129,3 +129,15 @@ def test_exif_orientation_applied(tmp_path: Path) -> None:
     exif[0x0112] = 6  # rotate 90 degrees when displayed
     path = make_image(tmp_path / "rotated.jpg", "people", size=(40, 20), exif=exif)
     assert open_image(path).size == (20, 40)
+
+
+def test_backbone_builds_image_encoder_only() -> None:
+    import torch
+
+    from clip.model import VisionTransformer, build_model
+
+    tiny = VisionTransformer(input_resolution=32, patch_size=16, width=64, layers=2, heads=1, output_dim=8)
+    state = {f"visual.{k}": v for k, v in tiny.state_dict().items()}
+    state["text_projection"] = torch.zeros(64, 8)  # text-tower weights must be ignored
+    model = build_model(state)
+    assert model.encode_image(torch.zeros(2, 3, 32, 32)).shape == (2, 8)

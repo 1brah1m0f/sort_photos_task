@@ -1,4 +1,4 @@
-"""Pretrained CLIP backbone: download the weights once, then load them strictly from local files."""
+"""Pretrained CLIP backbone: download the weights once, then load the image encoder strictly from local files."""
 import hashlib
 import os
 import urllib.request
@@ -11,7 +11,7 @@ from PIL import Image
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 from tqdm import tqdm
 
-from .model import CLIP, build_model
+from .model import VisionTransformer, build_model
 
 try:
     from torchvision.transforms import InterpolationMode
@@ -23,11 +23,6 @@ except ImportError:
 __all__ = ["available_models", "checkpoint_path", "download", "expected_sha256", "load"]
 
 _MODELS = {
-    "RN50": "https://openaipublic.azureedge.net/clip/models/afeb0e10f9e5a86da6080e35cf09123aca3b358a0c3e3b6c78a7b63bc04b6762/RN50.pt",
-    "RN101": "https://openaipublic.azureedge.net/clip/models/8fa8567bab74a42d41c5915025a8e4538c3bdbe8804a470a72f30b0d94fab599/RN101.pt",
-    "RN50x4": "https://openaipublic.azureedge.net/clip/models/7e526bd135e493cef0776de27d5f42653e6b4c8bf9e0f653bb11773263205fdd/RN50x4.pt",
-    "RN50x16": "https://openaipublic.azureedge.net/clip/models/52378b407f34354e150460fe41077663dd5b39c54cd0bfd2b27167a4a06ec9aa/RN50x16.pt",
-    "RN50x64": "https://openaipublic.azureedge.net/clip/models/be1cfb55d75a9666199fb2206c106743da0f6468c9d327f3e0d0a543a9919d9c/RN50x64.pt",
     "ViT-B/32": "https://openaipublic.azureedge.net/clip/models/40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af/ViT-B-32.pt",
     "ViT-B/16": "https://openaipublic.azureedge.net/clip/models/5806e77cd80f8b59890b7e101eabd078d9fb84e6937f9e85e4ecb61988df416f/ViT-B-16.pt",
     "ViT-L/14": "https://openaipublic.azureedge.net/clip/models/b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836/ViT-L-14.pt",
@@ -36,7 +31,7 @@ _MODELS = {
 
 
 def available_models() -> List[str]:
-    """Returns the names of available CLIP models"""
+    """Return the names of the supported CLIP image encoders."""
     return list(_MODELS.keys())
 
 
@@ -104,7 +99,7 @@ def download(name: str, root: Union[str, Path]) -> Path:
     return download_target
 
 
-def _convert_image_to_rgb(image):
+def _convert_image_to_rgb(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
@@ -118,8 +113,8 @@ def _transform(n_px: int) -> Callable[[Image.Image], torch.Tensor]:
     ])
 
 
-def load(name: str, device: Union[str, torch.device] = "cpu", download_root: Union[str, Path, None] = None) -> Tuple[CLIP, Callable[[Image.Image], torch.Tensor]]:
-    """Load a frozen CLIP model from local files only; this never touches the network.
+def load(name: str, device: Union[str, torch.device] = "cpu", download_root: Union[str, Path, None] = None) -> Tuple[VisionTransformer, Callable[[Image.Image], torch.Tensor]]:
+    """Load a frozen CLIP image encoder from local files only; this never touches the network.
 
     Parameters
     ----------
@@ -134,8 +129,8 @@ def load(name: str, device: Union[str, torch.device] = "cpu", download_root: Uni
 
     Returns
     -------
-    model : torch.nn.Module
-        The CLIP model in eval mode with gradients disabled
+    model : VisionTransformer
+        The CLIP image encoder (float32) in eval mode with gradients disabled
 
     preprocess : Callable[[PIL.Image], torch.Tensor]
         A torchvision transform that converts a PIL image into a tensor that the returned model can take as its input
@@ -159,8 +154,6 @@ def load(name: str, device: Union[str, torch.device] = "cpu", download_root: Uni
     except RuntimeError:
         state_dict = torch.load(model_path, map_location="cpu")
 
-    model = build_model(state_dict).to(device)
-    if str(device) == "cpu":
-        model.float()
+    model = build_model(state_dict).float().to(device)
     model.eval().requires_grad_(False)
-    return model, _transform(model.visual.input_resolution)
+    return model, _transform(model.input_resolution)
