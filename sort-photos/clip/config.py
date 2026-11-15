@@ -19,12 +19,13 @@ ALBUMS: Dict[str, str] = {
 # Frozen feature extractor (one of clip.available_models()).
 BACKBONE_NAME = "ViT-B/32"
 
-# Default locations, relative to the directory the CLI is run from (the repo root).
-DEFAULT_TRAIN_DIR = Path("data/train")
-DEFAULT_TEST_DIR = Path("data/test")
-DEFAULT_MODEL_DIR = Path("models")
+# Project folder (sort-photos/). Defaults are absolute paths under it, so the CLI works from any directory.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_TRAIN_DIR = PROJECT_ROOT / "data" / "train"
+DEFAULT_TEST_DIR = PROJECT_ROOT / "data" / "test"
+DEFAULT_MODEL_DIR = PROJECT_ROOT / "models"
 DEFAULT_BACKBONE_DIR = DEFAULT_MODEL_DIR / "backbone"
-DEFAULT_REPORT_DIR = Path("reports")
+DEFAULT_REPORT_DIR = PROJECT_ROOT / "reports"
 
 CLASSIFIER_FILE = "classifier.joblib"
 METADATA_FILE = "classifier.json"
