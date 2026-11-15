@@ -1,0 +1,104 @@
+{
+  "n_images": 45,
+  "n_correct": 41,
+  "accuracy": 0.9111111111111111,
+  "per_class": {
+    "food_drinks": {
+      "precision": 1.0,
+      "recall": 0.9411764705882353,
+      "f1-score": 0.9696969696969697,
+      "support": 17.0
+    },
+    "people": {
+      "precision": 1.0,
+      "recall": 0.8333333333333334,
+      "f1-score": 0.9090909090909091,
+      "support": 18.0
+    },
+    "interior": {
+      "precision": 0.7142857142857143,
+      "recall": 1.0,
+      "f1-score": 0.8333333333333334,
+      "support": 10.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      16,
+      0,
+      1
+    ],
+    [
+      0,
+      15,
+      3
+    ],
+    [
+      0,
+      0,
+      10
+    ]
+  ],
+  "class_names": [
+    "food_drinks",
+    "people",
+    "interior"
+  ],
+  "misclassified": [
+    {
+      "path": "data/test/people/381278a11557485ab28fb61aa27c1951.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9870715737342834,
+      "probabilities": {
+        "food_drinks": 0.001327696954831481,
+        "people": 0.011600790545344353,
+        "interior": 0.9870715737342834
+      }
+    },
+    {
+      "path": "data/test/people/02efbaea0f1c4e96b6ffbb1f6a19d919.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.980542778968811,
+      "probabilities": {
+        "food_drinks": 0.0019335135584697127,
+        "people": 0.017523694783449173,
+        "interior": 0.980542778968811
+      }
+    },
+    {
+      "path": "data/test/people/2fb066309ba54573a5d8f03d4738f692.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9802886247634888,
+      "probabilities": {
+        "food_drinks": 0.005808588117361069,
+        "people": 0.01390280481427908,
+        "interior": 0.9802886247634888
+      }
+    },
+    {
+      "path": "data/test/food_drinks/92c536eaccbb4084bdc3e20c52375b11.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.9750704169273376,
+      "probabilities": {
+        "food_drinks": 0.023670705035328865,
+        "people": 0.0012588929384946823,
+        "interior": 0.9750704169273376
+      }
+    }
+  ],
+  "difficult_example": {
+    "path": "data/test/people/381278a11557485ab28fb61aa27c1951.jpg",
+    "true": "people",
+    "predicted": "interior",
+    "confidence": 0.9870715737342834,
+    "probabilities": {
+      "food_drinks": 0.001327696954831481,
+      "people": 0.011600790545344353,
+      "interior": 0.9870715737342834
+    }
+  }
+}

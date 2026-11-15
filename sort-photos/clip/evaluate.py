@@ -133,6 +133,22 @@ def save_thumbnail(source: Path, path: Path, size: int = 360) -> None:
     image.save(path, quality=90)
 
 
+def _classifier_desc(metadata: Dict[str, Any]) -> str:
+    clf = metadata["classifier"]
+    weight = clf.get("class_weight")
+    return f"logistic regression, C = {clf['C']}" + (f", class_weight = {weight}" if weight else "")
+
+
+def _cv_desc(training: Dict[str, Any]) -> str:
+    """One line describing the model-selection CV (understands artifacts from before grouped CV)."""
+    if "cv_score_mean" in training:
+        kind = f"grouped by venue/source, {training['n_groups']} groups" if training.get("cv_grouped") else "stratified"
+        return (f"Model selection: {training['cv_folds']}-fold CV ({kind}) on train, {training['cv_scoring']} "
+                f"{training['cv_score_mean']:.1%} ± {training['cv_score_std']:.1%}")
+    return (f"Model selection: {training['cv_folds']}-fold stratified CV on train, accuracy "
+            f"{training['cv_accuracy_mean']:.1%} ± {training['cv_accuracy_std']:.1%}")
+
+
 def write_report(result: EvaluationResult, report_dir: Path, metadata: Dict[str, Any]) -> Path:
     """Write ``evaluation.md``, ``evaluation.json``, ``confusion_matrix.png`` and ``difficult_example.jpg``."""
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -143,9 +159,8 @@ def write_report(result: EvaluationResult, report_dir: Path, metadata: Dict[str,
     n = len(result.predictions)
     md = [
         "# Evaluation report", "",
-        f"- Backbone: CLIP {metadata['backbone']['name']} (frozen), classifier: logistic regression, C = {metadata['classifier']['C']}",
-        f"- Cross-validation on train ({metadata['training']['cv_folds']}-fold): "
-        f"{metadata['training']['cv_accuracy_mean']:.1%} ± {metadata['training']['cv_accuracy_std']:.1%}",
+        f"- Backbone: CLIP {metadata['backbone']['name']} (frozen), classifier: {_classifier_desc(metadata)}",
+        f"- {_cv_desc(metadata['training'])}",
         f"- **Test accuracy: {result.n_correct} / {n} correct ({result.accuracy:.1%})**", "",
         "## Per-class metrics", "",
         "| Class | Precision | Recall | F1 | Support |", "|---|---|---|---|---|",

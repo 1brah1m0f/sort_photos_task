@@ -50,13 +50,18 @@ def cmd_download_model(args: argparse.Namespace) -> int:
 def cmd_train(args: argparse.Namespace) -> int:
     from .train import train
 
+    groups_file = None if args.no_groups else (args.groups or config.default_groups_file(args.data))
+    if groups_file is not None and not groups_file.is_file():
+        raise FileNotFoundError(f"Groups file not found: {groups_file}")
     report = train(args.data, args.out, args.backbone, args.backbone_dir, args.device or config.default_device(),
-                   args.batch_size, args.seed, args.folds)
+                   args.batch_size, args.seed, args.folds, groups_file)
     print(f"\nTrained on {sum(report.train_counts.values())} images: {report.train_counts}")
-    print(f"{report.cv_folds}-fold stratified CV accuracy per C:")
+    kind = f"grouped by venue/source ({report.n_groups} groups)" if report.cv_grouped else "stratified (no groups)"
+    print(f"{report.cv_folds}-fold CV, {kind}, {report.cv_scoring} per setting:")
     for row in report.cv_results:
-        mark = "  <- selected" if row["C"] == report.best_c else ""
-        print(f"  C={row['C']:<7g} {row['mean_accuracy']:.3f} ± {row['std_accuracy']:.3f}{mark}")
+        chosen = row["C"] == report.best_c and row["class_weight"] == report.best_class_weight
+        print(f"  C={row['C']:<7g} class_weight={str(row['class_weight']):<9} "
+              f"{row['mean_score']:.3f} ± {row['std_score']:.3f}{'  <- selected' if chosen else ''}")
     if report.skipped:
         print(f"Skipped {len(report.skipped)} unreadable training files.")
     print(f"Saved {args.out / config.CLASSIFIER_FILE} and {args.out / config.METADATA_FILE}")
@@ -135,7 +140,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=Path, default=config.DEFAULT_MODEL_DIR)
     p.add_argument("--backbone", default=config.BACKBONE_NAME)
     p.add_argument("--seed", type=int, default=config.SEED)
-    p.add_argument("--folds", type=_int_at_least(2), default=config.CV_FOLDS, help="stratified CV folds (>= 2)")
+    p.add_argument("--folds", type=_int_at_least(2), default=config.CV_FOLDS, help="CV folds (>= 2)")
+    p.add_argument("--groups", type=Path, default=None,
+                   help="CSV with class,filename,group columns for venue/source-grouped CV "
+                        "(default: <data>/../manifest.csv if it has a 'group' column)")
+    p.add_argument("--no-groups", action="store_true", help="use plain stratified CV")
     common(p, model=False)
     p.set_defaults(func=cmd_train)
 

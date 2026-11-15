@@ -23,7 +23,7 @@ python -m pip install -e ".[dev]"
 # one-time download of the CLIP weights (~340 MB) into models/backbone/ (the only step that needs internet)
 python -m clip download-model
 
-# sort a folder (the trained classifier in models/ is included in the repo)
+# sort a folder (the trained classifier in models/ is included in the repo; no training needed)
 python -m clip sort --input /path/to/photos --output /path/to/albums --recursive
 ```
 
@@ -34,20 +34,33 @@ The output folder must not be inside the input folder.
 
 ```bash
 cd sort-photos
-python -m clip train --data data/train --out models/
+python -m clip train --data data/train --out models/   # venue-grouped CV over C × class_weight (groups: data/manifest.csv)
 ```
 
-## Evaluate
+## Evaluate (reproduces the numbers below)
 
 ```bash
 cd sort-photos
-python -m clip evaluate --data data/test                                             # benchmark split
-python -m clip evaluate --data data/holdout_cafe --report-dir reports/holdout_cafe   # real café holdout
+python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh                                   # retrained
+python -m clip evaluate --data data/holdout_fresh --report-dir reports/holdout_fresh/baseline --model-dir models/baseline  # shipped baseline
+python -m clip evaluate --data data/holdout_cafe  --report-dir reports/holdout_cafe                                    # diagnostic set
+python -m clip evaluate --data data/test                                                                               # benchmark split
 ```
 
-Current results: 45 / 45 on the benchmark split after one label correction (44 / 45 with its original
-labels), but only **26 / 45 on real café photos**. Café photos of people are mostly sorted into Interior.
-See [Results](sort-photos/README.md#results).
+## Results
+
+The default model in `sort-photos/models/` was retrained on audited labels plus 171 licensed café photos
+from 88 venue/photographer groups. The first shipped classifier is kept in `models/baseline/` for comparison.
+
+| Set | Baseline | Retrained |
+|---|---|---|
+| **Fresh café holdout** (45 photos, 35 venue groups absent from training) | 25 / 45 | **43 / 45** |
+| People recall on the fresh holdout | 0 / 15 | **13 / 15** |
+| Food & Drinks / Interior recall on the fresh holdout | 10 / 15, 15 / 15 | 15 / 15, 15 / 15 |
+| `holdout_cafe` (diagnostic, inspected earlier) | 26 / 45 | 43 / 45 |
+| Benchmark split, audited labels (original scene labels) | 41 / 45 (45 / 45) | 44 / 45 (40 / 45) |
+
+Details, the label audit and a difficult example: [`sort-photos/README.md#results`](sort-photos/README.md#results).
 
 ## Tests
 

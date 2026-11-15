@@ -87,3 +87,81 @@ def test_input_inside_output_is_rejected(tmp_path: Path, classifier: PhotoClassi
     make_image(src / "a.jpg", "people")
     with pytest.raises(ValueError, match="contain the input"):
         sort_folder(src, tmp_path / "out", classifier, progress=False)
+
+
+def _album_snapshot(album: Path) -> dict:
+    return {p.name: p.read_bytes() for p in album.iterdir()}
+
+
+def test_missing_source_after_reservation_leaves_no_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The source vanishes between reserving the destination and copying it."""
+    import clip.fileops as fileops
+
+    album = tmp_path / "album"
+    existing = make_image(album / "photo.jpg", "people")
+    before = _album_snapshot(album)
+    source = make_image(tmp_path / "src" / "photo.jpg", "food_drinks")
+    real_reserve = fileops._reserve
+
+    def reserve_then_delete_source(path: Path) -> bool:
+        reserved = real_reserve(path)
+        if reserved:
+            source.unlink()
+        return reserved
+
+    monkeypatch.setattr(fileops, "_reserve", reserve_then_delete_source)
+    with pytest.raises(FileNotFoundError):
+        copy_into(source, album)
+    assert _album_snapshot(album) == before  # no photo_1.jpg, existing file byte-identical
+    assert existing.read_bytes() == before["photo.jpg"]
+
+
+def test_partial_write_is_removed_and_error_surfaced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A copy that writes some bytes and then fails (e.g. disk full) leaves nothing behind."""
+    import clip.fileops as fileops
+
+    album = tmp_path / "album"
+    make_image(album / "photo.jpg", "people")
+    before = _album_snapshot(album)
+    source = make_image(tmp_path / "src" / "photo.jpg", "interior", size=(200, 200))
+
+    def partial_copy(src: Path, dst: Path) -> None:
+        Path(dst).write_bytes(Path(src).read_bytes()[:100])
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(fileops.shutil, "copy2", partial_copy)
+    with pytest.raises(OSError, match="No space left"):
+        copy_into(source, album)
+    assert _album_snapshot(album) == before
+
+
+def test_successful_copy_keeps_bytes_and_metadata(tmp_path: Path) -> None:
+    source = make_image(tmp_path / "src" / "photo.jpg", "people")
+    os.utime(source, (1_000_000_000, 1_000_000_000))
+    album = tmp_path / "album"
+    album.mkdir()
+    copied = copy_into(source, album)
+    assert copied.read_bytes() == source.read_bytes()
+    assert copied.stat().st_mtime == source.stat().st_mtime
+
+
+def test_sort_reports_failed_copy_and_continues(photos: Path, tmp_path: Path, classifier: PhotoClassifier,
+                                               monkeypatch: pytest.MonkeyPatch) -> None:
+    import clip.fileops as fileops
+
+    real_copy2 = fileops.shutil.copy2
+
+    def flaky_copy2(src, dst):
+        if Path(src).name == "x.png":
+            Path(dst).write_bytes(b"partial")
+            raise OSError(5, "Input/output error")
+        return real_copy2(src, dst)
+
+    monkeypatch.setattr(fileops.shutil, "copy2", flaky_copy2)
+    out = tmp_path / "out"
+    result = sort_folder(photos, out, classifier, recursive=True, progress=False)
+    assert len(result.sorted_files) == 3
+    assert [(p.name, why.split(":")[0]) for p, why in result.skipped] == [("x.png", "copy failed")]
+    assert not (out / "Interior" / "x.png").exists()
+    for item in result.sorted_files:
+        assert item.copied_to.read_bytes() == item.original_path.read_bytes()

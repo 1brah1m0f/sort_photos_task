@@ -114,3 +114,30 @@ def test_duplicate_check_finds_copies_and_recolours_but_not_other_images(tmp_pat
     pairs, _ = find_duplicates(tmp_path / "train", [tmp_path / "train"], MeanColourEmbedder(), batch_size=4,
                                cosine_threshold=0.999, dhash_max_distance=-1, progress=False)
     assert pairs == []
+
+
+def test_grouped_cv_keeps_each_group_in_one_fold(tmp_path: Path, fake_backbone: None) -> None:
+    import csv
+
+    data = make_dataset(tmp_path / "data" / "train", per_class=6)
+    with open(tmp_path / "data" / "manifest.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["class", "filename", "group"])
+        for name in CLASS_NAMES:
+            for i in range(6):
+                writer.writerow([name, f"{i}.jpg", f"venue{i % 3}"])  # 3 venues, each with every class
+    code = main(["train", "--data", str(data), "--out", str(tmp_path / "m"), "--backbone-dir", str(tmp_path),
+                 "--folds", "3"])
+    assert code == 0
+    import json
+    training = json.loads((tmp_path / "m" / METADATA_FILE).read_text())["training"]
+    assert training["cv_grouped"] and training["n_groups"] == 3 and training["cv_scoring"] == "balanced_accuracy"
+
+
+def test_groups_file_must_cover_every_image(tmp_path: Path, fake_backbone: None) -> None:
+    data = make_dataset(tmp_path / "train", per_class=4)
+    groups = tmp_path / "groups.csv"
+    groups.write_text("class,filename,group\npeople,0.jpg,a\n")
+    with pytest.raises(ValueError, match="have no group"):
+        clip.train.train(data, tmp_path / "m", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=2, groups_file=groups)
+    assert not (tmp_path / "m").exists()

@@ -112,10 +112,21 @@ def copy_into(source: Path, directory: Path) -> Path:
 
     The destination name is reserved with an exclusive create before ``shutil.copy2`` fills it,
     so an existing file or symlink is never replaced or followed. The original file is only read.
+
+    Raises
+    ------
+    OSError
+        The original error if the copy fails (e.g. the source vanished or a write failed). The
+        reserved destination, empty or partially written, is removed first, so no incomplete image
+        is left in the album; files that existed before the call are never touched.
     """
     for candidate in _candidates(directory, source.name):
         if _reserve(candidate):
-            shutil.copy2(source, candidate)
+            try:
+                shutil.copy2(source, candidate)
+            except BaseException:
+                candidate.unlink(missing_ok=True)  # only ever our own reservation
+                raise
             return candidate
     raise AssertionError("unreachable")
 

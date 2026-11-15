@@ -1,0 +1,280 @@
+{
+  "n_images": 45,
+  "n_correct": 25,
+  "accuracy": 0.5555555555555556,
+  "per_class": {
+    "food_drinks": {
+      "precision": 1.0,
+      "recall": 0.6666666666666666,
+      "f1-score": 0.8,
+      "support": 15.0
+    },
+    "people": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 15.0
+    },
+    "interior": {
+      "precision": 0.42857142857142855,
+      "recall": 1.0,
+      "f1-score": 0.6,
+      "support": 15.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      10,
+      0,
+      5
+    ],
+    [
+      0,
+      0,
+      15
+    ],
+    [
+      0,
+      0,
+      15
+    ]
+  ],
+  "class_names": [
+    "food_drinks",
+    "people",
+    "interior"
+  ],
+  "misclassified": [
+    {
+      "path": "data/holdout_fresh/people/4a3de2e3b678c22283a43dbe.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9985119700431824,
+      "probabilities": {
+        "food_drinks": 0.0008837294299155474,
+        "people": 0.0006042380118742585,
+        "interior": 0.9985119700431824
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/892fa8fabd4e8354d8251600.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9980593323707581,
+      "probabilities": {
+        "food_drinks": 0.0013882326893508434,
+        "people": 0.0005524439620785415,
+        "interior": 0.9980593323707581
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/d2a3ce9318c787b56f7bafc8.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9946586489677429,
+      "probabilities": {
+        "food_drinks": 0.001187245943583548,
+        "people": 0.004154142923653126,
+        "interior": 0.9946586489677429
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/107a137fc605167060a2b41e.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9925867915153503,
+      "probabilities": {
+        "food_drinks": 0.0032267642673105,
+        "people": 0.004186461213976145,
+        "interior": 0.9925867915153503
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/abcc35939f0067172dbb8cba.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9924611449241638,
+      "probabilities": {
+        "food_drinks": 0.0017940709367394447,
+        "people": 0.005744795314967632,
+        "interior": 0.9924611449241638
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/24d21a4fec6e9a5fa8c76582.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9918213486671448,
+      "probabilities": {
+        "food_drinks": 0.0025723762810230255,
+        "people": 0.005606241524219513,
+        "interior": 0.9918213486671448
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/f5fed7efbb8997b16a2ad98c.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.989982545375824,
+      "probabilities": {
+        "food_drinks": 0.00813104584813118,
+        "people": 0.0018864626763388515,
+        "interior": 0.989982545375824
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/a84a36edf776b555dd308b9e.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9842932820320129,
+      "probabilities": {
+        "food_drinks": 0.008637775667011738,
+        "people": 0.007068969309329987,
+        "interior": 0.9842932820320129
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/3912013bf333f5d5fd147923.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9787335991859436,
+      "probabilities": {
+        "food_drinks": 0.011463787406682968,
+        "people": 0.00980263203382492,
+        "interior": 0.9787335991859436
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/3492a9fd6f1b07369cebc0ee.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9766371250152588,
+      "probabilities": {
+        "food_drinks": 0.009004214778542519,
+        "people": 0.014358612708747387,
+        "interior": 0.9766371250152588
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/4ceb033b758811b84aee127c.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9342902302742004,
+      "probabilities": {
+        "food_drinks": 0.016829466447234154,
+        "people": 0.04888032004237175,
+        "interior": 0.9342902302742004
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/c6ada3e98ddd1269dcb1cc37.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9204410314559937,
+      "probabilities": {
+        "food_drinks": 0.0050476230680942535,
+        "people": 0.0745113417506218,
+        "interior": 0.9204410314559937
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/95dc7f74dabe79982c4e1387.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.9017425775527954,
+      "probabilities": {
+        "food_drinks": 0.01726197637617588,
+        "people": 0.08099544793367386,
+        "interior": 0.9017425775527954
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/04f929838b0af618a3f0c1bc.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.8525798320770264,
+      "probabilities": {
+        "food_drinks": 0.06835097074508667,
+        "people": 0.07906924188137054,
+        "interior": 0.8525798320770264
+      }
+    },
+    {
+      "path": "data/holdout_fresh/food_drinks/bd701977a64e714e660e5c64.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.8231306672096252,
+      "probabilities": {
+        "food_drinks": 0.17321886122226715,
+        "people": 0.0036504471208900213,
+        "interior": 0.8231306672096252
+      }
+    },
+    {
+      "path": "data/holdout_fresh/food_drinks/ae88d0cf88cf8e6fcecc4ccf.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.787168562412262,
+      "probabilities": {
+        "food_drinks": 0.05379869043827057,
+        "people": 0.15903276205062866,
+        "interior": 0.787168562412262
+      }
+    },
+    {
+      "path": "data/holdout_fresh/people/3ca030071b785a4446a06d37.jpg",
+      "true": "people",
+      "predicted": "interior",
+      "confidence": 0.7425065636634827,
+      "probabilities": {
+        "food_drinks": 0.2155720740556717,
+        "people": 0.04192139208316803,
+        "interior": 0.7425065636634827
+      }
+    },
+    {
+      "path": "data/holdout_fresh/food_drinks/f14f8fc2ed8e69e7894a788b.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.6919377446174622,
+      "probabilities": {
+        "food_drinks": 0.29855549335479736,
+        "people": 0.009506751783192158,
+        "interior": 0.6919377446174622
+      }
+    },
+    {
+      "path": "data/holdout_fresh/food_drinks/e455dd4b185cc8b031f212d0.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.6179796457290649,
+      "probabilities": {
+        "food_drinks": 0.3777470588684082,
+        "people": 0.0042732818983495235,
+        "interior": 0.6179796457290649
+      }
+    },
+    {
+      "path": "data/holdout_fresh/food_drinks/a920dd851684138ebe060b8c.jpg",
+      "true": "food_drinks",
+      "predicted": "interior",
+      "confidence": 0.6143484711647034,
+      "probabilities": {
+        "food_drinks": 0.3805295526981354,
+        "people": 0.005121900234371424,
+        "interior": 0.6143484711647034
+      }
+    }
+  ],
+  "difficult_example": {
+    "path": "data/holdout_fresh/people/892fa8fabd4e8354d8251600.jpg",
+    "true": "people",
+    "predicted": "interior",
+    "confidence": 0.9980593323707581,
+    "probabilities": {
+      "food_drinks": 0.0013882326893508434,
+      "people": 0.0005524439620785415,
+      "interior": 0.9980593323707581
+    }
+  }
+}

@@ -101,7 +101,12 @@ def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, 
                 probabilities = classifier.predict_images(batch_images)
                 for prediction in classifier.to_predictions(loaded_paths, probabilities):
                     album = ALBUMS.get(prediction.label, prediction.label)
-                    copied_to = copy_into(prediction.path, result.albums[album])
+                    try:
+                        copied_to = copy_into(prediction.path, result.albums[album])
+                    except OSError as exc:  # copy_into already removed its incomplete output
+                        logger.warning("Could not copy %s: %s", prediction.path, exc)
+                        result.skipped.append((prediction.path, f"copy failed: {type(exc).__name__}: {exc}"))
+                        continue
                     result.sorted_files.append(SortedFile(
                         original_path=prediction.path,
                         copied_to=copied_to,
