@@ -88,3 +88,38 @@ def test_unsure_symlink_is_rejected_even_without_flag(photos: Path, tmp_path: Pa
             sort_folder(photos, out, classifier, min_confidence=0.5, unsure=unsure, progress=False)
     assert tree_hashes(photos) == before
     assert sorted(os.listdir(out)) == [UNSURE_ALBUM]
+
+
+# --- console output and empty input -----------------------------------------------------------------------------
+
+def test_console_confidence_is_truncated_to_three_decimals() -> None:
+    from clip.cli import _confidence
+
+    assert _confidence(0.49996) == "0.499"  # would round to 0.500 and look equal to a 0.5 threshold
+    assert _confidence(0.5) == "0.500"
+    assert _confidence(0.98765) == "0.987"
+
+
+def test_cli_low_confidence_lines_use_three_decimals(mixed_photos: Path, tmp_path: Path, cli_with_classifier,
+                                                     capsys: pytest.CaptureFixture) -> None:
+    code = cli_with_classifier(["sort", "--input", str(mixed_photos), "--output", str(tmp_path / "out"),
+                                "--min-confidence", "0.8"])
+    printed = capsys.readouterr().out
+    assert code == 0
+    assert "Low confidence (< 0.8): 1" in printed
+    line = next(l for l in printed.splitlines() if "blurry.png" in l)
+    assert line.endswith("-> Food & Drinks (0.498)")
+
+
+@pytest.mark.parametrize("contents", [[], ["notes.txt", "list.csv"]])
+def test_cli_no_images_exits_1_without_creating_albums(contents: list, tmp_path: Path, cli_with_classifier,
+                                                       capsys: pytest.CaptureFixture) -> None:
+    src = tmp_path / "empty"
+    src.mkdir()
+    for name in contents:
+        (src / name).write_text("not a photo")
+    out = tmp_path / "out"
+    code = cli_with_classifier(["sort", "--input", str(src), "--output", str(out)])
+    assert code == 1
+    assert f"No images found in {src}" in capsys.readouterr().err
+    assert not out.exists()

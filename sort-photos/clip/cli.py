@@ -1,6 +1,7 @@
 """Command-line interface: ``python -m clip {download-model,train,evaluate,check-duplicates,sort}``."""
 import argparse
 import logging
+import math
 import os
 import sys
 from pathlib import Path
@@ -80,21 +81,30 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _confidence(value: float) -> str:
+    """3 decimals, truncated (not rounded) so a value just below the threshold never prints as equal to it."""
+    return f"{math.floor(value * 1000) / 1000:.3f}"
+
+
 def cmd_sort(args: argparse.Namespace) -> int:
     from .predict import PhotoClassifier
-    from .sorter import sort_folder
+    from .sorter import NoImagesFound, sort_folder
 
     classifier = PhotoClassifier.load(args.model_dir, args.backbone_dir, args.device)
-    result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size,
-                         append=args.append, unsure=args.unsure)
+    try:
+        result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size,
+                             append=args.append, unsure=args.unsure)
+    except NoImagesFound as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     print(f"\nCopied {len(result.sorted_files)} photos into {result.output_dir} (originals unchanged):")
     for album, count in result.counts().items():
         print(f"  {album:<15}{count:>5}")
     if args.min_confidence > 0:
-        print(f"Low confidence (< {args.min_confidence:.2f}): {len(result.low_confidence)}")
+        print(f"Low confidence (< {args.min_confidence:g}): {len(result.low_confidence)}")
         for item in result.low_confidence:
             best = "" if item.album == item.predicted_album else f", best guess {item.predicted_album}"
-            print(f"  {item.original_path} -> {item.album} ({item.confidence:.2f}{best})")
+            print(f"  {item.original_path} -> {item.album} ({_confidence(item.confidence)}{best})")
     print(f"Skipped: {len(result.skipped)}")
     for path, why in result.skipped:
         print(f"  {path}: {why}")

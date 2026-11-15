@@ -16,6 +16,10 @@ from .predict import PhotoClassifier
 logger = logging.getLogger(__name__)
 
 
+class NoImagesFound(Exception):
+    """The input folder has no files with a supported image extension."""
+
+
 @dataclass
 class SortedFile:
     """One copied photo. ``album`` is where it was copied (``Unsure`` or the best class);
@@ -110,6 +114,8 @@ def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, 
         For an invalid batch size or confidence threshold, ``unsure`` without a threshold, unsafe input/output paths, or an output
         folder from a previous run without ``append``. All checks run before any folder is created
         or any file is copied.
+    NoImagesFound
+        If the input folder has no supported image files; nothing is created in that case.
     """
     if batch_size < 1:
         raise ValueError(f"batch size must be a positive integer, got {batch_size}")
@@ -121,13 +127,15 @@ def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, 
     # Always check Unsure too: a link or file there could come from an earlier --unsure run.
     all_albums = album_names(classifier.class_names, unsure=True)
     validate_output_entries(target, all_albums, [PREDICTIONS_FILE])
+    images, others = list_files(source, recursive)
+    if not images:
+        raise NoImagesFound(f"No images found in {input_dir}" + ("" if recursive else " (use --recursive for sub-folders)"))
     previous = existing_output(target, all_albums, [PREDICTIONS_FILE])
     if previous and not append:
         raise ValueError(f"Output folder {output_dir} already contains a previous sort ({len(previous)} entries, "
                          f"e.g. {previous[0]}). Re-run with --append to add to it, or choose an empty folder.")
     csv_path = target / PREDICTIONS_FILE
     previous_rows = read_csv_rows(csv_path, predictions_header(classifier.class_names)) if csv_path.exists() else []
-    images, others = list_files(source, recursive)
     result = SortResult(output_dir=target, albums=create_albums(target, album_names(classifier.class_names, unsure)),
                         previous_rows=len(previous_rows))
     for path in others:
