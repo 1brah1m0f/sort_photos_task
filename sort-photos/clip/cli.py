@@ -86,14 +86,15 @@ def cmd_sort(args: argparse.Namespace) -> int:
 
     classifier = PhotoClassifier.load(args.model_dir, args.backbone_dir, args.device)
     result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size,
-                         append=args.append)
+                         append=args.append, unsure=args.unsure)
     print(f"\nCopied {len(result.sorted_files)} photos into {result.output_dir} (originals unchanged):")
     for album, count in result.counts().items():
         print(f"  {album:<15}{count:>5}")
     if args.min_confidence > 0:
         print(f"Low confidence (< {args.min_confidence:.2f}): {len(result.low_confidence)}")
         for item in result.low_confidence:
-            print(f"  {item.original_path} -> {item.album} ({item.confidence:.2f})")
+            best = "" if item.album == item.predicted_album else f", best guess {item.predicted_album}"
+            print(f"  {item.original_path} -> {item.album} ({item.confidence:.2f}{best})")
     print(f"Skipped: {len(result.skipped)}")
     for path, why in result.skipped:
         print(f"  {path}: {why}")
@@ -175,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--recursive", action="store_true", help="include photos in sub-folders")
     p.add_argument("--min-confidence", type=_probability, default=0.0, help="flag predictions below this probability")
+    p.add_argument("--unsure", action="store_true",
+                   help=f"copy photos below --min-confidence to an '{config.UNSURE_ALBUM}' album instead of their best album")
     p.add_argument("--append", action="store_true",
                    help="add to an output folder from a previous run (keeps its files, extends predictions.csv)")
     common(p)

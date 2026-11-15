@@ -16,6 +16,9 @@ ALBUMS: Dict[str, str] = {
     "interior": "Interior",
 }
 
+# Optional album for photos below --min-confidence when --unsure is given.
+UNSURE_ALBUM = "Unsure"
+
 # Frozen feature extractor (one of clip.available_models()).
 BACKBONE_NAME = "ViT-B/32"
 
