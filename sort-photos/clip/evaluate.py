@@ -55,10 +55,18 @@ class EvaluationResult:
 
 
 def evaluate(classifier: PhotoClassifier, data_dir: Path, batch_size: int, progress: bool = True) -> EvaluationResult:
-    """Classify every image in ``data_dir/<class>/`` and compare with the folder label."""
+    """Classify every image in ``data_dir/<class>/`` and compare with the folder label.
+
+    Raises
+    ------
+    ValueError
+        If none of the images can be decoded.
+    """
     paths, labels = collect_labeled_images(data_dir, classifier.class_names)
     truth = {path: classifier.class_names[i] for path, i in zip(paths, labels)}
     predictions, skipped = classifier.predict_paths(paths, batch_size, progress, desc="Evaluating")
+    if not predictions:
+        raise ValueError(f"No readable test images in {data_dir} ({len(skipped)} unreadable files skipped).")
     y_true = [truth[p.path] for p in predictions]
     y_pred = [p.label for p in predictions]
     names = classifier.class_names

@@ -1,12 +1,36 @@
-"""Command-line interface: ``python -m clip {download-model,train,evaluate,sort}``."""
+"""Command-line interface: ``python -m clip {download-model,train,evaluate,check-duplicates,sort}``."""
 import argparse
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from . import config
+
+
+def _int_at_least(minimum: int) -> Callable[[str], int]:
+    """argparse type: an integer >= ``minimum``."""
+    def parse(text: str) -> int:
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"expected an integer, got {text!r}") from None
+        if value < minimum:
+            raise argparse.ArgumentTypeError(f"must be an integer >= {minimum}, got {value}")
+        return value
+    return parse
+
+
+def _probability(text: str) -> float:
+    """argparse type: a float in [0, 1]."""
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected a number, got {text!r}") from None
+    if not 0.0 <= value <= 1.0:
+        raise argparse.ArgumentTypeError(f"must be between 0 and 1, got {value}")
+    return value
 
 
 def _offline() -> None:
@@ -55,8 +79,6 @@ def cmd_sort(args: argparse.Namespace) -> int:
     from .predict import PhotoClassifier
     from .sorter import sort_folder
 
-    if not 0.0 <= args.min_confidence <= 1.0:
-        raise ValueError("--min-confidence must be between 0 and 1")
     classifier = PhotoClassifier.load(args.model_dir, args.backbone_dir, args.device)
     result = sort_folder(args.input, args.output, classifier, args.recursive, args.min_confidence, args.batch_size)
     print(f"\nCopied {len(result.sorted_files)} photos into {result.output_dir} (originals unchanged):")
@@ -73,6 +95,25 @@ def cmd_sort(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_duplicates(args: argparse.Namespace) -> int:
+    from .duplicates import find_duplicates
+    from .features import ClipEmbedder
+    from .predict import load_artifact
+
+    _, metadata = load_artifact(args.model_dir)
+    embedder = ClipEmbedder(metadata["backbone"]["name"], args.backbone_dir, args.device)
+    pairs, summary = find_duplicates(args.data, args.against, embedder, args.batch_size, args.cosine_threshold,
+                                     args.dhash_distance)
+    print(f"\nCompared {summary['candidates']} images in {args.data} with {summary['references']} reference images.")
+    a, b = summary["max_cosine_pair"]
+    print(f"Closest pair: cosine {summary['max_cosine']:.3f} ({a} ~ {b}); smallest dHash distance: {summary['min_dhash_distance']}")
+    print(f"Duplicates / near-duplicates (sha256 equal, dHash <= {args.dhash_distance}, or cosine >= {args.cosine_threshold}): {len(pairs)}")
+    for pair in pairs:
+        print(f"  {pair.candidate} ~ {pair.reference}: sha256_equal={pair.sha256_equal} "
+              f"dhash={pair.dhash_distance} cosine={pair.cosine:.3f}")
+    return 1 if pairs else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m clip", description="Sort café photos into Food & Drinks, People and Interior albums.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -80,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     def common(p: argparse.ArgumentParser, model: bool = True) -> None:
         p.add_argument("--backbone-dir", type=Path, default=config.DEFAULT_BACKBONE_DIR, help="local folder with the backbone weights")
         p.add_argument("--device", default=None, help="cuda or cpu (default: cuda if available)")
-        p.add_argument("--batch-size", type=int, default=config.BATCH_SIZE)
+        p.add_argument("--batch-size", type=_int_at_least(1), default=config.BATCH_SIZE, help="images per batch (positive integer)")
         if model:
             p.add_argument("--model-dir", type=Path, default=config.DEFAULT_MODEL_DIR, help="folder with the trained classifier")
 
@@ -94,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=Path, default=config.DEFAULT_MODEL_DIR)
     p.add_argument("--backbone", default=config.BACKBONE_NAME)
     p.add_argument("--seed", type=int, default=config.SEED)
-    p.add_argument("--folds", type=int, default=config.CV_FOLDS)
+    p.add_argument("--folds", type=_int_at_least(2), default=config.CV_FOLDS, help="stratified CV folds (>= 2)")
     common(p, model=False)
     p.set_defaults(func=cmd_train)
 
@@ -104,11 +145,19 @@ def build_parser() -> argparse.ArgumentParser:
     common(p)
     p.set_defaults(func=cmd_evaluate)
 
+    p = sub.add_parser("check-duplicates", help="find duplicates/near-duplicates of an evaluation set in other folders")
+    p.add_argument("--data", type=Path, required=True, help="evaluation images (searched recursively)")
+    p.add_argument("--against", type=Path, nargs="+", default=[config.DEFAULT_TRAIN_DIR, config.DEFAULT_TEST_DIR])
+    p.add_argument("--cosine-threshold", type=_probability, default=0.95)
+    p.add_argument("--dhash-distance", type=_int_at_least(0), default=6)
+    common(p)
+    p.set_defaults(func=cmd_check_duplicates)
+
     p = sub.add_parser("sort", help="copy photos from a folder into album folders")
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--recursive", action="store_true", help="include photos in sub-folders")
-    p.add_argument("--min-confidence", type=float, default=0.0, help="flag predictions below this probability")
+    p.add_argument("--min-confidence", type=_probability, default=0.0, help="flag predictions below this probability")
     common(p)
     p.set_defaults(func=cmd_sort)
     return parser

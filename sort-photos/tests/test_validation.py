@@ -1,0 +1,116 @@
+"""Regression tests: invalid arguments and incomplete data fail clearly instead of silently succeeding."""
+from pathlib import Path
+
+import pytest
+
+import clip.train
+from conftest import COLOURS, MeanColourEmbedder, make_image
+from clip.cli import build_parser, main
+from clip.config import CLASS_NAMES, CLASSIFIER_FILE, METADATA_FILE
+from clip.evaluate import evaluate
+from clip.predict import PhotoClassifier
+from clip.sorter import sort_folder
+
+
+def make_dataset(root: Path, per_class: int, corrupt_classes: tuple = ()) -> Path:
+    """``root/<class>/`` with ``per_class`` images each; classes in ``corrupt_classes`` get only corrupt JPEGs."""
+    for name in CLASS_NAMES:
+        for i in range(per_class):
+            path = root / name / f"{i}.jpg"
+            if name in corrupt_classes:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"\xff\xd8\xff not really a jpeg")
+            else:
+                make_image(path, name)
+    return root
+
+
+@pytest.fixture
+def fake_backbone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``train()`` use the colour embedder instead of loading CLIP weights."""
+    monkeypatch.setattr(clip.train, "ClipEmbedder", lambda *args, **kwargs: MeanColourEmbedder())
+    monkeypatch.setattr(clip.train, "checkpoint_path", lambda name, root: Path(root) / "fake.pt")
+    monkeypatch.setattr(clip.train, "expected_sha256", lambda name: "0" * 64)
+
+
+@pytest.mark.parametrize("command", [
+    ["sort", "--input", "in", "--output", "out"],
+    ["train"],
+    ["evaluate"],
+])
+@pytest.mark.parametrize("value", ["-1", "0", "abc"])
+def test_non_positive_batch_size_rejected_by_cli(command: list, value: str, capsys: pytest.CaptureFixture) -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(command + ["--batch-size", value])
+    assert exc.value.code == 2
+    assert "--batch-size" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("args", [["train", "--folds", "1"], ["sort", "--input", "a", "--output", "b", "--min-confidence", "1.5"]])
+def test_other_invalid_arguments_rejected(args: list) -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(args)
+    assert exc.value.code == 2
+
+
+def test_negative_batch_size_rejected_by_sort_folder(photos: Path, tmp_path: Path, classifier: PhotoClassifier) -> None:
+    out = tmp_path / "out"
+    with pytest.raises(ValueError, match="batch size"):
+        sort_folder(photos, out, classifier, batch_size=-1, progress=False)
+    assert not out.exists()
+
+
+def test_train_fails_when_a_class_has_zero_readable_images(tmp_path: Path, fake_backbone: None,
+                                                           capsys: pytest.CaptureFixture) -> None:
+    data = make_dataset(tmp_path / "train", per_class=6, corrupt_classes=("interior",))
+    out = tmp_path / "models"
+    code = main(["train", "--data", str(data), "--out", str(out), "--backbone-dir", str(tmp_path)])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "interior: 0" in err and "No model was written" in err
+    assert not (out / CLASSIFIER_FILE).exists() and not (out / METADATA_FILE).exists()
+
+
+def test_train_fails_when_readable_images_are_fewer_than_folds(tmp_path: Path, fake_backbone: None) -> None:
+    data = make_dataset(tmp_path / "train", per_class=6)
+    for i in range(3):  # people: 6 files, only 3 decodable
+        (data / "people" / f"{i}.jpg").write_bytes(b"garbage")
+    with pytest.raises(ValueError, match="people: 3"):
+        clip.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=5)
+    assert not (tmp_path / "models").exists()
+
+
+def test_train_succeeds_with_enough_readable_images(tmp_path: Path, fake_backbone: None) -> None:
+    data = make_dataset(tmp_path / "train", per_class=6)
+    report = clip.train.train(data, tmp_path / "models", "ViT-B/32", tmp_path, "cpu", batch_size=4, folds=3)
+    assert report.train_counts == {name: 6 for name in CLASS_NAMES}
+    assert (tmp_path / "models" / CLASSIFIER_FILE).is_file()
+
+
+def test_evaluate_with_zero_readable_images_fails(tmp_path: Path, classifier: PhotoClassifier) -> None:
+    data = make_dataset(tmp_path / "test", per_class=2, corrupt_classes=tuple(CLASS_NAMES))
+    with pytest.raises(ValueError, match="No readable test images"):
+        evaluate(classifier, data, batch_size=8, progress=False)
+
+
+def test_colour_stand_in_matches_classes() -> None:
+    assert set(COLOURS) == set(CLASS_NAMES)
+
+
+def test_duplicate_check_finds_copies_and_recolours_but_not_other_images(tmp_path: Path) -> None:
+    from clip.duplicates import find_duplicates
+
+    ref = make_image(tmp_path / "train" / "people" / "a.jpg", "people", size=(64, 48))
+    make_image(tmp_path / "train" / "interior" / "b.jpg", "interior", size=(64, 48))
+    cand_dir = tmp_path / "holdout"
+    (cand_dir / "people").mkdir(parents=True)
+    (cand_dir / "people" / "copy.jpg").write_bytes(ref.read_bytes())
+    make_image(cand_dir / "food_drinks" / "c.jpg", "food_drinks", size=(64, 48))
+    pairs, summary = find_duplicates(cand_dir, [tmp_path / "train"], MeanColourEmbedder(), batch_size=4,
+                                     cosine_threshold=0.999, dhash_max_distance=-1, progress=False)
+    assert [(p.candidate.name, p.reference.name, p.sha256_equal) for p in pairs] == [("copy.jpg", "a.jpg", True)]
+    assert summary["candidates"] == 2 and summary["references"] == 2
+    # checking a folder against itself never reports an image as its own duplicate
+    pairs, _ = find_duplicates(tmp_path / "train", [tmp_path / "train"], MeanColourEmbedder(), batch_size=4,
+                               cosine_threshold=0.999, dhash_max_distance=-1, progress=False)
+    assert pairs == []

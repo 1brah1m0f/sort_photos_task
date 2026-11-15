@@ -72,7 +72,14 @@ def iter_image_batches(paths: Sequence[Path], batch_size: int) -> Iterator[Tuple
     """Yield ``(loaded_paths, images, skipped)`` for consecutive chunks of ``paths``.
 
     Files that cannot be decoded are logged and reported in ``skipped`` instead of raising.
+
+    Raises
+    ------
+    ValueError
+        If ``batch_size`` is not a positive integer.
     """
+    if batch_size < 1:
+        raise ValueError(f"batch size must be a positive integer, got {batch_size}")
     for start in range(0, len(paths), batch_size):
         loaded_paths: List[Path] = []
         images: List[Image.Image] = []

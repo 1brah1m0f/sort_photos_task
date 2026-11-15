@@ -54,6 +54,24 @@ def collect_labeled_images(data_dir: Path, class_names: Sequence[str] = CLASS_NA
     return paths, np.array(labels)
 
 
+def check_class_counts(counts: Dict[str, int], folds: int, skipped: int = 0) -> None:
+    """Make sure every class has enough *readable* images for ``folds``-fold stratified CV.
+
+    Raises
+    ------
+    ValueError
+        If ``folds`` < 2 or any class has fewer than ``folds`` decodable images.
+    """
+    if folds < 2:
+        raise ValueError(f"--folds must be at least 2, got {folds}")
+    short = {name: n for name, n in counts.items() if n < folds}
+    if short:
+        detail = ", ".join(f"{name}: {n}" for name, n in short.items())
+        raise ValueError(f"{folds}-fold cross-validation needs at least {folds} readable images per class; "
+                         f"got {detail} ({skipped} unreadable training files skipped). "
+                         "Add images or lower --folds. No model was written.")
+
+
 def fit_classifier(features: np.ndarray, labels: np.ndarray, seed: int = SEED, folds: int = CV_FOLDS,
                    c_grid: Sequence[float] = C_GRID) -> Tuple[LogisticRegression, Dict[str, Any]]:
     """Choose ``C`` with stratified k-fold CV, then refit on all training data."""
@@ -89,14 +107,23 @@ def save_model(out_dir: Path, estimator: LogisticRegression, metadata: Dict[str,
 
 def train_from_embedder(data_dir: Path, embedder: Embedder, batch_size: int, seed: int = SEED,
                         folds: int = CV_FOLDS, progress: bool = True) -> Tuple[LogisticRegression, TrainingReport]:
-    """Embed the training images with ``embedder`` and fit the classifier head."""
+    """Embed the training images with ``embedder`` and fit the classifier head.
+
+    Raises
+    ------
+    ValueError
+        If a class has fewer readable images than ``folds`` (checked after decoding, before fitting).
+    """
+    if folds < 2:
+        raise ValueError(f"--folds must be at least 2, got {folds}")
     set_seed(seed)
     paths, labels = collect_labeled_images(data_dir)
     features, embedded, skipped = embed_paths(paths, embedder, batch_size, progress, desc="Embedding train")
     keep = {p: i for i, p in enumerate(paths)}
     y = labels[[keep[p] for p in embedded]]
-    estimator, summary = fit_classifier(features, y, seed=seed, folds=folds)
     counts = {name: int((y == i).sum()) for i, name in enumerate(CLASS_NAMES)}
+    check_class_counts(counts, folds, len(skipped))
+    estimator, summary = fit_classifier(features, y, seed=seed, folds=folds)
     report = TrainingReport(cv_folds=folds, train_counts=counts, skipped=[str(p) for p, _ in skipped], **summary)
     return estimator, report
 

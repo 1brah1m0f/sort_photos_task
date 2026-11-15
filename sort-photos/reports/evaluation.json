@@ -1,13 +1,13 @@
 {
   "n_images": 45,
-  "n_correct": 44,
-  "accuracy": 0.9777777777777777,
+  "n_correct": 45,
+  "accuracy": 1.0,
   "per_class": {
     "food_drinks": {
-      "precision": 0.9375,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1-score": 0.967741935483871,
-      "support": 15.0
+      "f1-score": 1.0,
+      "support": 16.0
     },
     "people": {
       "precision": 1.0,
@@ -17,14 +17,14 @@
     },
     "interior": {
       "precision": 1.0,
-      "recall": 0.9333333333333333,
-      "f1-score": 0.9655172413793104,
-      "support": 15.0
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 14.0
     }
   },
   "confusion_matrix": [
     [
-      15,
+      16,
       0,
       0
     ],
@@ -34,7 +34,7 @@
       0
     ],
     [
-      1,
+      0,
       0,
       14
     ]
@@ -44,28 +44,16 @@
     "people",
     "interior"
   ],
-  "misclassified": [
-    {
-      "path": "data/test/interior/337d124eeda7482b9aba84aae4ef9528.jpg",
-      "true": "interior",
-      "predicted": "food_drinks",
-      "confidence": 0.9228495359420776,
-      "probabilities": {
-        "food_drinks": 0.9228495359420776,
-        "people": 0.0019790111109614372,
-        "interior": 0.07517148554325104
-      }
-    }
-  ],
+  "misclassified": [],
   "difficult_example": {
-    "path": "data/test/interior/337d124eeda7482b9aba84aae4ef9528.jpg",
-    "true": "interior",
-    "predicted": "food_drinks",
-    "confidence": 0.9228495359420776,
+    "path": "data/test/people/4eda754771ad4d60ba25939c7b1efa9f.jpg",
+    "true": "people",
+    "predicted": "people",
+    "confidence": 0.6912104487419128,
     "probabilities": {
-      "food_drinks": 0.9228495359420776,
-      "people": 0.0019790111109614372,
-      "interior": 0.07517148554325104
+      "food_drinks": 0.008451362140476704,
+      "people": 0.6912104487419128,
+      "interior": 0.30033817887306213
     }
   }
 }

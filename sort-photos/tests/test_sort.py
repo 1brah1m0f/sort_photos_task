@@ -1,60 +1,16 @@
-"""Sorter tests using tiny generated images and a colour-based stand-in for the CLIP embedder."""
+"""Sorter behaviour: albums, copying, CSV, collisions, EXIF orientation, filename independence."""
 import csv
-import hashlib
 from pathlib import Path
-from typing import Dict, Sequence
 
-import numpy as np
 import pytest
 from PIL import Image
-from sklearn.linear_model import LogisticRegression
 
+from conftest import make_image, tree_hashes
 from clip.config import ALBUMS, CLASS_NAMES, PREDICTIONS_FILE
 from clip.features import open_image
 from clip.fileops import unique_destination
 from clip.predict import PhotoClassifier
 from clip.sorter import sort_folder
-
-# food_drinks -> red, people -> green, interior -> blue
-COLOURS = {"food_drinks": (220, 30, 30), "people": (30, 220, 30), "interior": (30, 30, 220)}
-
-
-class MeanColourEmbedder:
-    """Deterministic, offline embedder: the mean RGB of the image."""
-
-    name = "mean-colour"
-
-    def embed(self, images: Sequence[Image.Image]) -> np.ndarray:
-        return np.stack([np.asarray(im.resize((8, 8)), dtype=np.float32).mean(axis=(0, 1)) / 255 for im in images])
-
-
-@pytest.fixture(scope="module")
-def classifier() -> PhotoClassifier:
-    rng = np.random.default_rng(0)
-    centres = np.array([COLOURS[name] for name in CLASS_NAMES], dtype=np.float32) / 255
-    X = np.concatenate([c + rng.normal(0, 0.03, (20, 3)) for c in centres])
-    y = np.repeat(np.arange(len(CLASS_NAMES)), 20)
-    return PhotoClassifier(MeanColourEmbedder(), LogisticRegression(C=100).fit(X, y), CLASS_NAMES)
-
-
-def make_image(path: Path, label: str, size=(24, 16), **save_kwargs) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", size, COLOURS[label]).save(path, **save_kwargs)
-    return path
-
-
-def tree_hashes(root: Path) -> Dict[str, str]:
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob("*")) if p.is_file()}
-
-
-@pytest.fixture
-def photos(tmp_path: Path) -> Path:
-    src = tmp_path / "photos"
-    make_image(src / "a1b2.jpg", "food_drinks")
-    make_image(src / "IMG_0001.JPEG", "people")
-    make_image(src / "x.png", "interior")
-    make_image(src / "nested" / "q.webp", "food_drinks")
-    return src
 
 
 def test_originals_unchanged(photos: Path, tmp_path: Path, classifier: PhotoClassifier) -> None:
@@ -108,7 +64,7 @@ def test_output_inside_input_rejected(photos: Path, classifier: PhotoClassifier)
 
 def test_predictions_csv_and_min_confidence(photos: Path, tmp_path: Path, classifier: PhotoClassifier) -> None:
     out = tmp_path / "out"
-    result = sort_folder(photos, out, classifier, recursive=True, min_confidence=1.01, progress=False)
+    result = sort_folder(photos, out, classifier, recursive=True, min_confidence=1.0, progress=False)
     with open(out / PREDICTIONS_FILE, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 4

@@ -1,5 +1,4 @@
 """Sort a folder of photos into album folders by copying each file to its predicted album."""
-import csv
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,7 +8,7 @@ from tqdm import tqdm
 
 from .config import ALBUMS, PREDICTIONS_FILE
 from .features import Skipped, iter_image_batches
-from .fileops import copy_into, list_files, validate_sort_dirs
+from .fileops import copy_into, list_files, validate_output_entries, validate_sort_dirs, write_csv_atomic
 from .predict import PhotoClassifier
 
 logger = logging.getLogger(__name__)
@@ -60,16 +59,14 @@ def create_albums(output_dir: Path, class_names: List[str]) -> Dict[str, Path]:
 
 
 def write_predictions_csv(result: SortResult, class_names: List[str]) -> Path:
-    """Write one row per copied photo to ``predictions.csv`` in the output folder."""
-    path = result.output_dir / PREDICTIONS_FILE
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["original_path", "album", "confidence", "low_confidence", "copied_to"]
-                        + [f"p_{name}" for name in class_names])
-        for item in result.sorted_files:
-            writer.writerow([str(item.original_path), item.album, f"{item.confidence:.4f}", item.low_confidence,
-                             str(item.copied_to)] + [f"{item.probabilities[name]:.4f}" for name in class_names])
-    return path
+    """Atomically write one row per copied photo to ``predictions.csv`` in the output folder."""
+    header = ["original_path", "album", "confidence", "low_confidence", "copied_to"] + [f"p_{name}" for name in class_names]
+    rows = (
+        [str(item.original_path), item.album, f"{item.confidence:.4f}", item.low_confidence, str(item.copied_to)]
+        + [f"{item.probabilities[name]:.4f}" for name in class_names]
+        for item in result.sorted_files
+    )
+    return write_csv_atomic(result.output_dir / PREDICTIONS_FILE, header, rows)
 
 
 def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, recursive: bool = False,
@@ -78,8 +75,19 @@ def sort_folder(input_dir: Path, output_dir: Path, classifier: PhotoClassifier, 
 
     Originals are never moved, renamed or modified. Files that are not readable images are skipped
     with a warning. Photos below ``min_confidence`` are still copied to their best album but flagged.
+
+    Raises
+    ------
+    ValueError
+        For an invalid batch size or confidence threshold, or unsafe input/output paths. All checks
+        run before any folder is created or any file is copied.
     """
+    if batch_size < 1:
+        raise ValueError(f"batch size must be a positive integer, got {batch_size}")
+    if not 0.0 <= min_confidence <= 1.0:
+        raise ValueError(f"min_confidence must be between 0 and 1, got {min_confidence}")
     source, target = validate_sort_dirs(input_dir, output_dir)
+    validate_output_entries(target, [ALBUMS.get(c, c) for c in classifier.class_names], [PREDICTIONS_FILE])
     images, others = list_files(source, recursive)
     result = SortResult(output_dir=target, albums=create_albums(target, classifier.class_names))
     for path in others:
